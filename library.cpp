@@ -1,9 +1,24 @@
 #include <emscripten/bind.h>
-#include <emscripten/html5.h>
+#include <onnxruntime_cxx_api.h>
+
+#include <filesystem>
+#include <optional>
 
 using namespace emscripten;
 
-float lerp(float a, float b, float t) {
+std::optional<Ort::Session> get_session(const std::filesystem::path& model_path) {
+    if (model_path.empty()) {
+        return std::nullopt;
+    }
+
+    const Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "example-model-explorer");
+    const Ort::SessionOptions session_options;
+
+    return Ort::Session(env, model_path.c_str(), session_options);
+}
+
+float lerp(const float a, const float b, const float t) {
+    [[maybe_unused]] const auto session = get_session("");
     return (1 - t) * a + t * b;
 }
 

@@ -15,20 +15,45 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/build.emscripten)
 
-# We need to make this an exectuable target even though it's meant to be a library. This is because emscripten
+# We need to make this an executable target even though it's meant to be a library. This is because emscripten
 # doesn't generate .js files for libraries and only produces a static library.
 set(
     SOURCE_FILES
         library.cpp
+        onnx/include/onnxruntime_c_api.h
+        onnx/include/onnxruntime_cxx_api.h
+        onnx/include/onnxruntime_cxx_inline.h
+        onnx/include/onnxruntime_float16.h
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 
+# Link onnxruntime - oh im sorry anyone on windows, y'all gonna have fun linking this 50 mb binary 👹
+# TODO: once we know this shit works, make a builder for the .a and upload the binary/pull using CMake
+target_include_directories(
+    ${PROJECT_NAME}
+    PRIVATE
+        onnx/include
+)
+
+target_link_directories(
+    ${PROJECT_NAME}
+    PRIVATE
+        onnx/lib
+)
+
+target_link_libraries(
+    ${PROJECT_NAME}
+    PRIVATE
+        onnxruntime_webassembly
+)
+
 # Custom EMSCRIPTEN settings
+# TODO: Change depending on debug/release etc.
 # Note: once we fix node not liking our dev container install tsc and add `--emit-tsd` to our link flags
 # Note: more flags and shit found here
 #   - https://emscripten.org/docs/tools_reference/emcc.html
 #   - https://emscripten.org/docs/tools_reference/settings_reference.html?highlight=environment
 
-set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-O3 -flto -fno-rtti -fno-exceptions -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0")
-set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS    "-O3 -flto -fno-rtti -fno-exceptions -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -s WASM=1 -s STANDALONE_WASM -s MODULARIZE=1 --no-entry --bind")
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-O3 -flto -fno-rtti -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0")
+set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS    "-O3 -flto -fno-rtti -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -s WASM=1 -s STANDALONE_WASM -s MODULARIZE=1 --no-entry --bind")

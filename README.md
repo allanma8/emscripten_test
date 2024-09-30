@@ -25,6 +25,7 @@ Relevant header files should also be copied
 - `include/onnxruntime/core/session/onnxruntime_c_api.h`
 - `include/onnxruntime/core/session/onnxruntime_cxx_api.h`
 - `include/onnxruntime/core/session/onnxruntime_cxx_inline.h`
+- `include/onnxruntime/core/session/onnxruntime_float16.h`
 
 Relevant static objects should be `libonnxruntime_webassembly.a`
 
