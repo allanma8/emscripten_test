@@ -53,11 +53,3 @@ liblerp()
 ```
 
 Then run using node: `node ./<file>.js`
-
-## Notes
-
-### closure compiler package
-
-Emsdk install the native version of `google-closure-compiler` which won't work on
-arm devices. If you get an error when doing `npm install` go into `/emdk/upstream/emscripten/package.json` and remove
-the native version of `google-closure-compiler`. Then delete `package-lock.json` and run `npm install`

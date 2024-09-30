@@ -1,36 +1,89 @@
-FROM mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04
+FROM mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04 as builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Don't bump this until https://github.com/llvm/llvm-project/issues/107685 has been fixed.
-# Clang 20.0 doesn't work well with emscripten at the moment and we get linker crash issues.
-ARG EMSDK_VERSION=3.1.59
+ARG EMSCRIPTEN_VERSION=3.1.59
+ENV EMSDK /emsdk
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    git-lfs \
-    cmake \
-    clang \
-    build-essential \
-    ca-certificates \
-    python3 \
-    python3-dev \
-    python3-pip \
-    openjdk-11-jre-headless \
-    && \
-    rm -rf /var/lib/apt/lists/*
+# Install dependencies needed to install/build emsdk
+RUN apt-get -qq -y update \
+    && apt-get -qq install -y --no-install-recommends \
+        curl \
+        file \
+        git \
+        binutils \
+        build-essential \
+        ca-certificates \
+        python3 \
+        python3-pip
 
-ENV NODE_VERSION=22
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
+# Install emsdk
+RUN git clone https://github.com/emscripten-core/emsdk.git ${EMSDK} && \
+    cd ${EMSDK} && \
+    ./emsdk install ${EMSCRIPTEN_VERSION} && \
+    ./emsdk activate ${EMSCRIPTEN_VERSION}
 
-ENV NVM_DIR=/root/.nvm
-RUN . "$NVM_DIR/nvm.sh" && nvm install ${NODE_VERSION}
-RUN . "$NVM_DIR/nvm.sh" && nvm use v${NODE_VERSION}
-RUN . "$NVM_DIR/nvm.sh" && nvm alias default v${NODE_VERSION}
-ENV PATH="/root/.nvm/versions/node/v${NODE_VERSION}/bin/:${PATH}"
+# Clean up some files from emsdk
+RUN cd ${EMSDK} && . ./emsdk_env.sh \
+    && strip -s `which node` \
+    && rm -fr ${EMSDK}/upstream/emscripten/tests \
+    && find ${EMSDK}/upstream/bin -type f -exec strip -s {} + || true
 
-RUN git clone https://github.com/emscripten-core/emsdk.git && \
-    cd emsdk && \
-    ./emsdk install ${EMSDK_VERSION} && \
-    ./emsdk activate ${EMSDK_VERSION}
+#
+# This is the actual image we will be using to run stuff in
+#
+FROM mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04 as runner
+
+COPY --from=builder /emsdk /emsdk
+
+# ARG USERNAME=dev
+#
+# ARG USER_UID=1001
+# ARG USER_GID=$USER_UID
+
+ENV EMSDK=/emsdk \
+    EMSDK_NODE="/emsdk/node/18.20.3_64bit/bin/node" \
+    PATH="/emsdk:/emsdk/upstream/emscripten:/emsdk/node/18.20.3_64bit/bin:${PATH}"
+
+RUN apt-get -qq -y update \
+    && DEBIAN_FRONTEND="noninteractive" TZ="America/San_Francisco" apt-get -qq install -y --no-install-recommends \
+        sudo \
+        libxml2 \
+        ca-certificates \
+        python3 \
+        python3-pip \
+        wget \
+        curl \
+        zip \
+        unzip \
+        git \
+        git-lfs \
+        ssh-client \
+        build-essential \
+        ninja-build \
+        ant \
+        libidn12 \
+        cmake \
+        openjdk-11-jre-headless \
+    && apt-get -y clean \
+    && apt-get -y autoclean \
+    && apt-get -y autoremove \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/cache/debconf/*-old \
+    && rm -rf /usr/share/doc/* \
+    && rm -rf /usr/share/man/?? \
+    && rm -rf /usr/share/man/??_*
+
+# Create user
+#RUN groupadd --gid $USER_GID $USERNAME \
+#    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
+#    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
+#    && chmod 0440 /etc/sudoers.d/$USERNAME
+#
+#USER $USERNAME
+
+# HACK FIX
+# This removes the dependency on `google-closure-compiler-linux` which causes issues for arm64 things
+RUN cd ${EMSDK}/upstream/emscripten \
+    && npm uninstall google-closure-compiler-linux \
+    && npm install
