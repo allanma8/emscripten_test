@@ -1,0 +1,11 @@
+{
+  "build": {
+    "dockerfile": "docker/builder.dockerfile"
+  },
+  "customizations" : {
+    "jetbrains" : {
+      "backend" : "CLion"
+    }
+  },
+  "remoteUser": "root"
+}
