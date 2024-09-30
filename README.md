@@ -27,3 +27,9 @@ Relevant header files should also be copied
 - `include/onnxruntime/core/session/onnxruntime_cxx_inline.h`
 
 Relevant static objects should be `libonnxruntime_webassembly.a`
+
+## Building this library
+
+- Start the DevPod and connect to it.
+- Make sure you set `-DCMAKE_TOOLCHAIN_FILE=/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake`
+- Build

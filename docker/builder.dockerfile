@@ -25,6 +25,7 @@ ARG EMSDK_VERSION=3.1.57
 RUN apt-get update && apt-get install -y \
     curl \
     git \
+    git-lfs \
     cmake \
     clang \
     build-essential \

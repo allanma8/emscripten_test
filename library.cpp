@@ -1,8 +1,12 @@
-#include "library.h"
+#include <emscripten/bind.h>
+#include <emscripten/html5.h>
 
-#include <iostream>
+using namespace emscripten;
 
-void hello()
-{
-    std::cout << "Hello, World!" << std::endl;
+float lerp(float a, float b, float t) {
+    return (1 - t) * a + t * b;
+}
+
+EMSCRIPTEN_BINDINGS(my_module) {
+    function("lerp", &lerp);
 }
