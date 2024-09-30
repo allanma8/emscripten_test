@@ -2,12 +2,14 @@
 #include <onnxruntime_cxx_api.h>
 
 #include <filesystem>
+#include <iostream>
 #include <optional>
 
 using namespace emscripten;
 
 std::optional<Ort::Session> get_session(const std::filesystem::path& model_path) {
     if (model_path.empty()) {
+        std::cout << "Hello Empty Shit \n";
         return std::nullopt;
     }
 

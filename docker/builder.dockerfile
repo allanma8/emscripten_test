@@ -19,8 +19,9 @@ FROM mcr.microsoft.com/devcontainers/cpp:1-ubuntu-24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# This should be the same as what ever we are using for onnxruntime
-ARG EMSDK_VERSION=3.1.57
+# Don't bump this until https://github.com/llvm/llvm-project/issues/107685 has been fixed.
+# Clang 20.0 doesn't work well with emscripten at the moment and we get linker crash issues.
+ARG EMSDK_VERSION=3.1.59
 
 RUN apt-get update && apt-get install -y \
     curl \

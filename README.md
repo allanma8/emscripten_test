@@ -18,7 +18,7 @@ Follow [these step](https://onnxruntime.ai/docs/build/web.html) but make the fol
 
 The complete build command should be: 
 
-- `./build.sh --config Release --build_wasm_static_lib --skip_tests --disable_wasm_exception_catching --disable_rtti --enable_wasm_threads	--enable_wasm_simd`
+- `./build.sh --config Release --build_wasm_static_lib --skip_tests --disable_wasm_exception_catching --disable_rtti --enable_wasm_threads --enable_wasm_simd --parallel --minimal_build`
 
 Relevant header files should also be copied
 
@@ -34,3 +34,22 @@ Relevant static objects should be `libonnxruntime_webassembly.a`
 - Start the DevPod and connect to it.
 - Make sure you set `-DCMAKE_TOOLCHAIN_FILE=/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake`
 - Build
+
+## Example
+
+Create a Javascript file and paste the following code
+
+```javascript
+const liblerp = require('<path to wasm module>.js');
+
+// Instantiate liblerp by calling it. Promise returns an instance
+// which contains your exported function.
+liblerp()
+.then(instance => {
+  console.log(`${instance.lerp(100, 200, 0.5)}`);
+  console.log(`${instance.lerp(10, 20, 0.5)}`);
+  console.log(`${instance.lerp(1, 2, 0.5)}`);
+});
+```
+
+Then run using node: `node ./<file>.js`
