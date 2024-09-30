@@ -18,11 +18,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # doesn't generate .js files for libraries and only produces a static library.
 set(
     SOURCE_FILES
-        library.cpp
-        onnx/include/onnxruntime_c_api.h
-        onnx/include/onnxruntime_cxx_api.h
-        onnx/include/onnxruntime_cxx_inline.h
-        onnx/include/onnxruntime_float16.h
+        source/library.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
@@ -32,6 +28,7 @@ add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 target_include_directories(
     ${PROJECT_NAME}
     PRIVATE
+        include
         onnx/include
 )
 
