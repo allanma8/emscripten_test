@@ -2,6 +2,7 @@
 #include <onnxruntime_cxx_api.h>
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
 
