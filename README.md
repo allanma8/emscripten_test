@@ -19,6 +19,7 @@ Follow [these step](https://onnxruntime.ai/docs/build/web.html) but make the fol
 The complete build command should be: 
 
 - `./build.sh --config Release --build_wasm_static_lib --skip_tests --enable_wasm_simd --enable_wasm_threads --disable_wasm_exception_catching --disable_rtti --parallel`
+- `./build.sh --config Release --build_wasm_static_lib --skip_tests --enable_wasm_simd --enable_wasm_threads --disable_wasm_exception_catching --disable_rtti --parallel`
 
 Relevant header files should also be copied
 

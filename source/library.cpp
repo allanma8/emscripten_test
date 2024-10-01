@@ -7,6 +7,7 @@
 // https://github.com/emscripten-core/emscripten/issues/16305
 // https://github.com/DmitriyValetov/onnx_wasm_example/blob/main/src/CMakeLists.txt
 // https://github.com/dm33tri/wasm-onnx-opencv-demo?tab=readme-ov-file
+// https://github.com/csukuangfj/onnxruntime-libs?tab=readme-ov-file
 
 namespace {
     constexpr size_t INPUT_IMG_X = 640;
@@ -104,14 +105,14 @@ void YoloModel::warm_up() const {
         input_shape_array.data(), input_shape_array.size()
     );
 
-    // const std::vector<Ort::Value> output_tensors = m_session->Run(
-    //     Ort::RunOptions{nullptr},
-    //     m_inputNodeNames.data(),
-    //     &input_tensor,
-    //     1,
-    //     m_outputNodeNames.data(),
-    //     m_outputNodeNames.size()
-    // );
+    const std::vector<Ort::Value> output_tensors = m_session->Run(
+        Ort::RunOptions{nullptr},
+        m_inputNodeNames.data(),
+        &input_tensor,
+        1,
+        m_outputNodeNames.data(),
+        m_outputNodeNames.size()
+    );
 }
 
 EMSCRIPTEN_BINDINGS(yolo_model) {
