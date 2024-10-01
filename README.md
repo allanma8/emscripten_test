@@ -7,7 +7,7 @@
 
 ## Building
 
-### Building onnxruntime wasm binaries
+### Building onnxruntime wasm binaries (tested with 1.19.2)
 
 Statically linkable wasm binaries are not provided by Microsoft, we need to build them our selves from source.
 Follow [these step](https://onnxruntime.ai/docs/build/web.html) but make the following changes:

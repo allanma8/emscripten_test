@@ -103,16 +103,49 @@ add_executable(${PROJECT_NAME}
         ${CMAKE_SOURCE_DIR}/data/test_inference.cc
 )
 
-set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "\
-    -g2 \
-    -s ALLOW_MEMORY_GROWTH=1 \
-    -s ASSERTIONS=1 \
-    --preload-file ${CMAKE_SOURCE_DIR}/data/testdata@/testdata \
-    -s EXIT_RUNTIME=1 \
-    -s NO_DISABLE_EXCEPTION_CATCHING \
-    -s MODULARIZE=1 \
-    --emit-tsd ${PROJECT_NAME}.d.ts\
-")
+set(
+    COMPILER_FLAGS
+        -O3
+        -flto
+        -fno-rtti
+#        -fexceptions
+        -pthread
+        -msimd128
+)
+
+set(
+    LINKER_FLAGS
+        -O3
+        -flto
+        -fno-rtti
+#        -fexceptions
+        -pthread
+        -msimd128
+        -Wno-pthreads-mem-growth
+#        -s ERROR_ON_UNDEFINED_SYMBOLS=1
+        -s MODULARIZE=1
+        -s ASSERTIONS=0
+        -s SAFE_HEAP=0
+        -s STACK_OVERFLOW_CHECK=0
+        -s ALLOW_MEMORY_GROWTH=1
+        -s MAXIMUM_MEMORY=4GB
+#        -s DEFAULT_PTHREAD_STACK_SIZE=131072
+        -s INITIAL_MEMORY=1024MB
+        -s STACK_SIZE=64MB
+        -s PTHREAD_POOL_SIZE=Module[\\\"numThreads\\\"]-1
+#        -s EXIT_RUNTIME=0
+        -s WASM_BIGINT=1
+#        -s FILESYSTEM=0
+#        -s TOTAL_MEMORY=1024MB
+        --preload-file ${CMAKE_SOURCE_DIR}/data/testdata@/testdata
+        --emit-tsd ${PROJECT_NAME}.d.ts
+)
+
+string (REPLACE ";" " " COMPILER_FLAGS_STR "${COMPILER_FLAGS}")
+string (REPLACE ";" " " LINKER_FLAGS_STR "${LINKER_FLAGS}")
+
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "${COMPILER_FLAGS_STR}")
+set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS    "${LINKER_FLAGS_STR}")
 
 include(FetchContent)
 FetchContent_Declare(
@@ -122,7 +155,10 @@ FetchContent_Declare(
         URL_HASH SHA1=4b3c37972e4c1bef1185d46f702082f8772ee73f
 )
 FetchContent_MakeAvailable(googletest)
-target_link_libraries(${PROJECT_NAME} GTest::gtest)
+target_link_libraries(${PROJECT_NAME} gtest)
+
+set_target_properties(gtest PROPERTIES COMPILE_FLAGS "${COMPILER_FLAGS_STR}")
+set_target_properties(gtest PROPERTIES LINK_FLAGS    "${LINKER_FLAGS_STR}")
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/onnx/include)
 target_link_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/onnx/lib)
