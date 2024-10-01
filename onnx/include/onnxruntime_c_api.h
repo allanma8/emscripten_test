@@ -38,7 +38,7 @@
  *
  * This value is used by some API functions to behave as this version of the header expects.
  */
-#define ORT_API_VERSION 20
+#define ORT_API_VERSION 19
 
 #ifdef __cplusplus
 extern "C" {
@@ -621,7 +621,6 @@ typedef struct OrtMIGraphXProviderOptions {
   const char* migraphx_save_model_path;              // migraphx model path name
   int migraphx_load_compiled_model;                  // migraphx int8 cal table. Default 0 = false, noznero = true
   const char* migraphx_load_model_path;              // migraphx model path name
-  bool migraphx_exhaustive_tune;                     // migraphx tuned compile  Default = false
 } OrtMIGraphXProviderOptions;
 
 /** \brief OpenVINO Provider Options
@@ -3650,13 +3649,10 @@ struct OrtApi {
    *     - "73"
    *     - "75"
    *   "device_id": The ID of the device to use when setting 'htp_arch'. Defaults to "0" (for single device).
-       "enable_htp_fp16_precision": Used for float32 model for HTP backend.
+       "enable_htp_fp16_precision": Only used for float32 model.
        Enable the float32 model to be inferenced with fp16 precision. Otherwise, it will be fp32 precision.
-         - "0": With fp32 precision.
-         - "1": Default. With fp16 precision.
-       "enable_htp_weight_sharing": Enable QNN weight sharing feature while compiling multiple graphs into one QNN context.
-         - "0": Default. Disabled.
-         - "1": Enabled.
+         - "0": Default. With fp32 precision.
+         - "1": With fp16 precision.
    *
    * SNPE supported keys:
    *   "runtime": SNPE runtime engine, options: "CPU", "CPU_FLOAT32", "GPU", "GPU_FLOAT32_16_HYBRID", "GPU_FLOAT16",

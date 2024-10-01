@@ -1,57 +1,125 @@
 #include <emscripten/bind.h>
-#include <onnxruntime_cxx_api.h>
 
 #include <library.hpp>
 
-#include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <optional>
+
+// https://github.com/emscripten-core/emscripten/issues/16305
+// https://github.com/DmitriyValetov/onnx_wasm_example/blob/main/src/CMakeLists.txt
+// https://github.com/dm33tri/wasm-onnx-opencv-demo?tab=readme-ov-file
+// https://github.com/csukuangfj/onnxruntime-libs?tab=readme-ov-file
+
+namespace {
+    constexpr size_t INPUT_IMG_X = 640;
+    constexpr size_t INPUT_IMG_Y = 640;
+}
+
+YoloModel::~YoloModel() {
+
+    for (const auto ptr: m_inputNodeNames) {
+        delete[] ptr;
+    }
+
+    for (const auto ptr: m_outputNodeNames) {
+        delete[] ptr;
+    }
+}
 
 void YoloModel::load_model() {
-    // This is just temp shit to see if it works or what ever
-    // todo: implement properly
-    if (m_inputBuffer.m_buffer == nullptr ||
-        m_outputBuffer.m_buffer == nullptr) {
+
+    if (m_modelBinary.empty()) {
+        std::cout << "model binary vector is empty. fix it. \n";
         return;
     }
 
-    std::swap(m_inputBuffer.m_x, m_outputBuffer.m_x);
-    std::swap(m_inputBuffer.m_y, m_outputBuffer.m_y);
-    std::swap(m_inputBuffer.m_z, m_outputBuffer.m_z);
+    Ort::SessionOptions session_options;
+    session_options.DisablePerSessionThreads();
+    session_options.SetGraphOptimizationLevel(ORT_ENABLE_EXTENDED);
 
-    std::swap(m_inputBuffer.m_buffer, m_outputBuffer.m_buffer);
+    Ort::ThreadingOptions threading_options;
+    threading_options.SetGlobalIntraOpNumThreads(10);
+
+    Ort::Env environment(threading_options, ORT_LOGGING_LEVEL_WARNING, "hello");
+    environment.DisableTelemetryEvents();
+
+    m_session = std::make_unique<Ort::Session>(environment, m_modelBinary.data(), m_modelBinary.size(), session_options);
+    std::cout << "warming up\n";
+
+    Ort::AllocatorWithDefaultOptions allocator;
+
+    const size_t input_node_count = m_session->GetInputCount();
+
+    std::cout << "Input:\n";
+
+    for (size_t i = 0; i < input_node_count; i++) {
+        const Ort::AllocatedStringPtr input_node_name   = m_session->GetInputNameAllocated(i, allocator);
+        const auto temp_buf                             = new char[50]; // cleaned up in destructor
+
+        std::strcpy(temp_buf, input_node_name.get());
+        m_inputNodeNames.push_back(temp_buf);
+
+        std::cout << "\t -" << temp_buf << "\n";
+    }
+
+    const size_t output_node_count = m_session->GetOutputCount();
+
+    std::cout << "Output:\n";
+
+    for (size_t i = 0; i < output_node_count; i++) {
+        const Ort::AllocatedStringPtr output_node_name  = m_session->GetOutputNameAllocated(i, allocator);
+        const auto temp_buf                             = new char[10]; // cleaned up in destructor
+
+        std::strcpy(temp_buf, output_node_name.get());
+        m_outputNodeNames.push_back(temp_buf);
+
+        std::cout << "\t -" << temp_buf << "\n";
+    }
+
+    warm_up();
 }
 
-void YoloModel::create_input_buffer(const size_t x, const size_t y, const size_t z) {
-    m_inputBuffer = IOBuffer(x, y, z);
-}
+emscripten::val YoloModel::model_data_handle(const size_t numBytes) {
 
-void YoloModel::create_output_buffer(const size_t x, const size_t y, const size_t z) {
-    m_outputBuffer = IOBuffer(x, y, z);
-}
+    m_modelBinary.clear();
+    m_modelBinary.resize(numBytes);
 
-emscripten::val YoloModel::get_input_buffer_raw() const {
     return emscripten::val(emscripten::typed_memory_view(
-        m_inputBuffer.size_bytes(),
-        m_inputBuffer.m_buffer.get()
+        m_modelBinary.size(),
+        m_modelBinary.data()
     ));
 }
 
-emscripten::val YoloModel::get_output_buffer_raw() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        m_outputBuffer.size_bytes(),
-        m_outputBuffer.m_buffer.get()
-    ));
+void YoloModel::warm_up() const {
+
+    constexpr size_t BYTES_PER_PIXEL = 3;
+    const auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+
+    std::array<float, INPUT_IMG_X * INPUT_IMG_Y * BYTES_PER_PIXEL> input_data = {};
+    std::array<int64_t, 4> input_shape_array                    = {
+        1, 3, INPUT_IMG_X, INPUT_IMG_Y
+    };
+
+    const Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+        memory_info,
+        input_data.data(), input_data.size(),
+        input_shape_array.data(), input_shape_array.size()
+    );
+
+    const std::vector<Ort::Value> output_tensors = m_session->Run(
+        Ort::RunOptions{nullptr},
+        m_inputNodeNames.data(),
+        &input_tensor,
+        1,
+        m_outputNodeNames.data(),
+        m_outputNodeNames.size()
+    );
 }
 
 EMSCRIPTEN_BINDINGS(yolo_model) {
     emscripten::class_<YoloModel>("YoloModel")
         .constructor<>()
-        .function("create_input_buffer", &YoloModel::create_input_buffer)
-        .function("create_output_buffer", &YoloModel::create_output_buffer)
-        .function("get_input_buffer_raw", &YoloModel::get_input_buffer_raw)
-        .function("get_output_buffer_raw", &YoloModel::get_output_buffer_raw);
+        .function("load_model", &YoloModel::load_model)
+        .function("model_data_handle", &YoloModel::model_data_handle);
 }
 
 //
@@ -59,24 +127,17 @@ EMSCRIPTEN_BINDINGS(yolo_model) {
 //
 //
 //
-
-std::optional<Ort::Session> get_session(const std::filesystem::path& model_path) {
-    if (model_path.empty()) {
-        std::cout << "Hello Empty Shit \n";
-        return std::nullopt;
-    }
-
-    const Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "example-model-explorer");
-    const Ort::SessionOptions session_options;
-
-    return Ort::Session(env, model_path.c_str(), session_options);
-}
 
 float lerp(const float a, const float b, const float t) {
-    [[maybe_unused]] const auto session = get_session("");
     return (1 - t) * a + t * b;
+}
+
+// DEBUG SHIT FOR EXCEPTIONS COZ EMSCRIPTEN DOESNT ADD THIS FOR SOME REASON???
+std::string getExceptionMessage(int exceptionPtr) {
+    return {reinterpret_cast<std::exception *>(exceptionPtr)->what()};
 }
 
 EMSCRIPTEN_BINDINGS(my_module) {
     emscripten::function("lerp", &lerp);
+    emscripten::function("getExceptionMessage", &getExceptionMessage);
 }
