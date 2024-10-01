@@ -41,6 +41,7 @@ target_link_directories(
 target_link_libraries(
     ${PROJECT_NAME}
     PRIVATE
+        embind
         onnxruntime_webassembly
 )
 
@@ -50,5 +51,25 @@ target_link_libraries(
 #   - https://emscripten.org/docs/tools_reference/emcc.html
 #   - https://emscripten.org/docs/tools_reference/settings_reference.html?highlight=environment
 
-set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-O3 -flto -fno-rtti -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0")
-set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS    "-O3 -flto -fno-rtti -DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0 -s WASM=1 -s STANDALONE_WASM -s MODULARIZE=1 --no-entry --bind --emit-tsd ${PROJECT_NAME}.d.ts")
+set(
+    COMPILE_FLAGS
+        -O3
+        -flto
+)
+
+set(
+    LINKER_FLAGS
+        -O3
+        -flto
+        -s MODULARIZE=1
+        -s DISABLE_EXCEPTION_CATCHING=0
+        -s ASSERTIONS=0
+        -s ALLOW_MEMORY_GROWTH=1
+        --emit-tsd ${PROJECT_NAME}.d.ts
+)
+
+string (REPLACE ";" " " COMPILER_FLAGS_STR "${COMPILER_FLAGS}")
+string (REPLACE ";" " " LINKER_FLAGS_STR "${LINKER_FLAGS}")
+
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "${COMPILER_FLAGS_STR}")
+set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS    "${LINKER_FLAGS_STR}")
