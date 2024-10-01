@@ -52,19 +52,38 @@ target_link_libraries(
 #   - https://emscripten.org/docs/tools_reference/settings_reference.html?highlight=environment
 
 set(
-    COMPILE_FLAGS
+    COMPILER_FLAGS
         -O3
         -flto
+        -fexceptions
+        -pthread
+        -msimd128
+        -Wno-pthreads-mem-growth
+        -Wbad-function-cast
+        -Wcast-function-type
 )
 
 set(
     LINKER_FLAGS
         -O3
         -flto
+        -fexceptions
+        -pthread
+        -msimd128
+        -Wno-pthreads-mem-growth
+        -s ERROR_ON_UNDEFINED_SYMBOLS=1
         -s MODULARIZE=1
-        -s DISABLE_EXCEPTION_CATCHING=0
         -s ASSERTIONS=0
+        -s SAFE_HEAP=0
+        -s STACK_OVERFLOW_CHECK=0
         -s ALLOW_MEMORY_GROWTH=1
+        -s MAXIMUM_MEMORY=4294967296
+        -s DEFAULT_PTHREAD_STACK_SIZE=131072
+        -s STACK_SIZE=16777216
+        -s PTHREAD_POOL_SIZE=Module[\\\"numThreads\\\"]-1
+        -s EXIT_RUNTIME=0
+        -s WASM_BIGINT=1
+        -s FILESYSTEM=0
         --emit-tsd ${PROJECT_NAME}.d.ts
 )
 

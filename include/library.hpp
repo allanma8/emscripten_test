@@ -1,45 +1,21 @@
 #pragma once
 
 #include <emscripten/val.h>
+#include <onnxruntime_cxx_api.h>
 
-#include <memory>
-#include <span>
-
-struct IOBuffer {
-    IOBuffer() = default;
-    IOBuffer(
-        const size_t x,
-        const size_t y,
-        const size_t z
-    )
-        : m_x(x)
-        , m_y(y)
-        , m_z(z)
-        , m_buffer(std::make_unique<uint8_t[]>(m_x * m_y * m_z)) {
-
-    }
-
-    [[nodiscard]] size_t size_bytes() const {
-        return m_x * m_y * m_z;
-    }
-
-    size_t m_x = 0;
-    size_t m_y = 0;
-    size_t m_z = 0;
-    std::unique_ptr<uint8_t[]> m_buffer = nullptr;
-};
+#include <optional>
+#include <vector>
 
 class YoloModel {
 public:
     YoloModel() = default;
+    ~YoloModel();
 
     void load_model();
+    [[nodiscard]] emscripten::val model_data_handle(size_t numBytes);
 
-    void create_input_buffer(size_t x, size_t y, size_t z);
-    void create_output_buffer(size_t x, size_t y, size_t z);
-
-    [[nodiscard]] emscripten::val get_input_buffer_raw() const;
-    [[nodiscard]] emscripten::val get_output_buffer_raw() const;
+private:
+    void warm_up() const;
 
 public:
     // Rule of one coz I CBF figuring out lifetimes and shit properly
@@ -50,6 +26,9 @@ public:
     YoloModel&& operator=(YoloModel&&) = delete;
 
 private:
-    IOBuffer m_inputBuffer  = {};
-    IOBuffer m_outputBuffer = {};
+    std::unique_ptr<Ort::Session> m_session = {};
+
+    std::vector<uint8_t> m_modelBinary      = {};
+    std::vector<const char*> m_inputNodeNames  = {};
+    std::vector<const char*> m_outputNodeNames = {};
 };
