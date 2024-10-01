@@ -51,3 +51,38 @@ TEST(WebAssemblyTest, test) {
         ASSERT_EQ(expected_data[i], result[i]);
     }
 }
+
+TEST(WebAssemblyTest, yolo) {
+
+    constexpr size_t IMAGE_WIDTH    = 640;
+    constexpr size_t IMAGE_HEIGHT   = 640;
+
+    Ort::ThreadingOptions threading_opt;
+    threading_opt.SetGlobalIntraOpNumThreads(0); // determine automatically
+
+    Ort::SessionOptions session_options;
+    session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL); // max optimisation?
+
+    Ort::Env ort_env(threading_opt, ORT_LOGGING_LEVEL_WARNING);
+    Ort::Session session{ort_env, "testdata/yolov8n-pose.onnx", session_options};
+
+    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+
+    std::array<float, IMAGE_HEIGHT * IMAGE_WIDTH * 3> input_data = {};
+    std::array<int64_t, 4> input_shape = {1, 3, IMAGE_HEIGHT, IMAGE_WIDTH};
+
+    Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info,
+                                                              input_data.data(), input_data.size(),
+                                                              input_shape.data(), input_shape.size());
+
+    const char* input_names[]   = {"images"};
+    const char* output_names[]  = {"output0"};
+
+    std::vector<Ort::Value> output;
+
+    for (size_t i = 0; i < 10; i++) {
+        output = session.Run(Ort::RunOptions{nullptr}, input_names, &input_tensor, 1, output_names, 1);
+    }
+
+    ASSERT_EQ(output.empty(), false);
+}
