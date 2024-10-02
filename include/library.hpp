@@ -4,12 +4,11 @@
 
 #include <onnxruntime_cxx_api.h>
 
-#include <filesystem>
 #include <vector>
 
 class YoloModel {
 public:
-    explicit YoloModel(const std::filesystem::path& model_path);
+    explicit YoloModel(std::string model_path);
     ~YoloModel();
 
     // Used to change how large the input buffer is
