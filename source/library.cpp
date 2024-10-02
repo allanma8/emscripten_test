@@ -4,6 +4,7 @@
 
 #include <iostream>
 
+// https://niekdeschipper.com/projects/emscripten.html
 // https://github.com/emscripten-core/emscripten/issues/16305
 // https://github.com/DmitriyValetov/onnx_wasm_example/blob/main/src/CMakeLists.txt
 // https://github.com/dm33tri/wasm-onnx-opencv-demo?tab=readme-ov-file
@@ -31,7 +32,7 @@ EMSCRIPTEN_BINDINGS(my_module) {
 // Shitty test library for our POC
 //
 
-YoloModel::YoloModel(const std::filesystem::path &model_path)
+YoloModel::YoloModel(std::string model_path)
     : m_input_buffer(INPUT_IMG_X * INPUT_IMG_Y * PIXEL_DEPTH, 0)
     , m_output_buffer(INPUT_IMG_X * INPUT_IMG_Y * PIXEL_DEPTH, 0) {
 
@@ -144,7 +145,7 @@ std::vector<int64_t> YoloModel::warm_up() const {
 
 EMSCRIPTEN_BINDINGS(my_module_2) {
     emscripten::class_<YoloModel>("YoloModel")
-        .constructor<const std::filesystem::path>()
+        .constructor<std::string>()
         .function("update_input_buffer_size",   &YoloModel::update_input_buffer_size)
         .function("get_input_buffer",           &YoloModel::get_input_buffer)
         .function("get_output_buffer",          &YoloModel::get_output_buffer)
