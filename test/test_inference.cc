@@ -2,7 +2,10 @@
 // Licensed under the MIT License.
 
 #include <gtest/gtest.h>
+
 #include <onnxruntime_cxx_api.h>
+
+#include <library.hpp>
 
 TEST(WebAssemblyTest, test) {
 
@@ -13,7 +16,7 @@ TEST(WebAssemblyTest, test) {
     session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL); // max optimisation?
 
     Ort::Env ort_env(threading_opt, ORT_LOGGING_LEVEL_WARNING);
-    Ort::Session session{ort_env, "testdata/mul_1.onnx", session_options};
+    Ort::Session session{ort_env, "data/mul_1.onnx", session_options};
 
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 
@@ -64,7 +67,7 @@ TEST(WebAssemblyTest, yolo) {
     session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL); // max optimisation?
 
     Ort::Env ort_env(threading_opt, ORT_LOGGING_LEVEL_WARNING);
-    Ort::Session session{ort_env, "testdata/yolov8n-pose.onnx", session_options};
+    Ort::Session session{ort_env, "data/yolov8n-pose.onnx", session_options};
 
     auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 
@@ -85,4 +88,11 @@ TEST(WebAssemblyTest, yolo) {
     }
 
     ASSERT_EQ(output.empty(), false);
+}
+
+TEST(WebAssemblyTest, library) {
+
+    YoloModel model("data/yolov8n-pose.onnx");
+    model.update_input_buffer_size(1920, 1080, 3);
+
 }
