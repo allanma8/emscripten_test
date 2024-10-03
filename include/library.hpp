@@ -8,11 +8,14 @@
 
 class YoloModel {
 public:
-    explicit YoloModel(std::string model_path);
+    YoloModel(size_t num_threads_intra, size_t num_threads_inter);
     ~YoloModel();
 
     // Used to change how large the input buffer is
-    void update_input_buffer_size(size_t width, size_t height, size_t bytes_per_pixel);
+    void update_input_image_size(size_t width, size_t height);
+    void update_input_buffer_size(size_t bytes);
+
+    void run();
 
     [[nodiscard]] emscripten::val get_input_buffer()    const;
     [[nodiscard]] emscripten::val get_output_buffer()   const;
@@ -29,13 +32,14 @@ public:
     YoloModel&& operator=(YoloModel&&) = delete;
 
 private:
-    std::unique_ptr<Ort::Session> m_session         = {};
-    std::optional<Ort::MemoryInfo> m_memory_info    = {};
+    std::optional<Ort::Env> m_environment   = {};
+    std::unique_ptr<Ort::Session> m_session = {};
 
     std::vector<uint8_t> m_input_buffer     = {};
     std::vector<uint8_t> m_output_buffer    = {};
 
-    std::vector<int64_t> m_output_tensor_dim = {};
+    std::pair<size_t, size_t> m_input_image_size    = {};
+    std::vector<int64_t> m_output_tensor_dim        = {};
 
     std::vector<const char*> m_input_node_names  = {};
     std::vector<const char*> m_output_node_names = {};

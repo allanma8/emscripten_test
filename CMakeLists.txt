@@ -42,14 +42,13 @@ set(
         -s ERROR_ON_UNDEFINED_SYMBOLS=1
         -s ALLOW_MEMORY_GROWTH=1
         -s MAXIMUM_MEMORY=4GB
-#        -s DEFAULT_PTHREAD_STACK_SIZE=131072
+        -s DEFAULT_PTHREAD_STACK_SIZE=16MB
         -s INITIAL_MEMORY=1024MB
         -s STACK_SIZE=64MB
         -s PTHREAD_POOL_SIZE=Module[\\\"numThreads\\\"]-1
-#        -s EXIT_RUNTIME=0
+        -s EXIT_RUNTIME=0
         -s WASM_BIGINT=1
-#        -s FILESYSTEM=0
-#        -s TOTAL_MEMORY=1024MB
+        --no-entry
         --preload-file ${CMAKE_SOURCE_DIR}/data@/data
 )
 
@@ -107,6 +106,8 @@ else ()
         LINKER_FLAGS
         ${LINKER_FLAGS}
             -s ASSERTIONS=1
+            -s SAFE_HEAP=1
+            -s STACK_OVERFLOW_CHECK=2
             -s NO_DISABLE_EXCEPTION_CATCHING
     )
 endif ()
