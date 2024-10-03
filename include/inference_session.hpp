@@ -2,6 +2,8 @@
 
 #include <onnxruntime_cxx_api.h>
 
+// TODO: make `run` take array / template it out.
+
 //! A modular InferenceSession that is used in our black box inference class.
 class InferenceSession {
 public:
@@ -16,9 +18,22 @@ public:
     //! \note Value is not available until we run the model at least once.
     [[nodiscard]] const std::vector<std::vector<int64_t>>& get_output_tensor_dimensions()   const;
 
+    //! Get name of input nodes.
+    [[nodiscard]] const std::vector<const char*>& get_input_node_names()    const;
+
+    //! Get name of output nodes.
+    [[nodiscard]] const std::vector<const char*>& get_output_node_names()   const;
+
     //! Perform inference on the model
+    //! \note first call MAY be very slow since we need to calculate/save some data.
     //! \param input_tensors input tensors.
     [[nodiscard]] std::vector<Ort::Value> run(const std::vector<Ort::Value>& input_tensors);
+
+    //! Perform inference on the model
+    //! \note this overload assumes you know the input and output tensors and shapes
+    //! \param input_tensors input tensors.
+    //! \param output_tensors output_tensors.
+    void run(const std::vector<Ort::Value>& input_tensors, std::vector<Ort::Value>& output_tensors);
 
 public:
     InferenceSession(const InferenceSession&)   = delete;
@@ -26,6 +41,10 @@ public:
 
     InferenceSession& operator=(const InferenceSession&) = delete;
     InferenceSession&& operator=(InferenceSession &&)    = delete;
+
+private:
+    void set_input_tensor_shape(const std::vector<Ort::Value>& tensors);
+    void set_output_tensor_shape(const std::vector<Ort::Value>& tensors);
 
 private:
     std::shared_ptr<Ort::Env>       m_environment;

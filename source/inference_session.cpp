@@ -1,10 +1,22 @@
 #include <inference_session.hpp>
 
-#include <emscripten.h>
+namespace {
+    // Helper ?? Maybe move this somewhere else IDK
+    void set_tensor_shape(std::vector<std::vector<int64_t>>& output, const std::vector<Ort::Value> &tensors) {
+        output.clear();
+        output.reserve(tensors.size());
+
+        for (const auto &tensor: tensors) {
+            const auto type_info = tensor.GetTypeInfo();
+            const auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
+
+            output.emplace_back(tensor_info.GetShape());
+        }
+    }
+}
 
 InferenceSession::InferenceSession(const std::shared_ptr<Ort::Env> &environment, const std::string &model_file)
     : m_environment(environment) {
-
     Ort::SessionOptions session_options;
 
     // Using `-pthreads` means we use a global thread pool which we configure
@@ -23,8 +35,8 @@ InferenceSession::InferenceSession(const std::shared_ptr<Ort::Env> &environment,
     const size_t num_input_nodes = m_session->GetInputCount();
 
     for (size_t i = 0; i < num_input_nodes; i++) {
-        const auto buff             = new char[50];
-        const auto input_node_name  = m_session->GetInputNameAllocated(i, allocator);
+        const auto buff = new char[50];
+        const auto input_node_name = m_session->GetInputNameAllocated(i, allocator);
 
         std::strcpy(buff, input_node_name.get());
         m_input_node_names.push_back(buff);
@@ -33,7 +45,7 @@ InferenceSession::InferenceSession(const std::shared_ptr<Ort::Env> &environment,
     const size_t num_output_nodes = m_session->GetOutputCount();
 
     for (size_t i = 0; i < num_output_nodes; i++) {
-        const auto buff             = new char[50];
+        const auto buff = new char[50];
         const auto output_node_name = m_session->GetOutputNameAllocated(i, allocator);
 
         std::strcpy(buff, output_node_name.get());
@@ -50,16 +62,23 @@ InferenceSession::~InferenceSession() {
     }
 }
 
-const std::vector<std::vector<int64_t>>& InferenceSession::get_input_tensor_dimension() const {
+const std::vector<std::vector<int64_t>> &InferenceSession::get_input_tensor_dimension() const {
     return m_input_tensor_dimension;
 }
 
-const std::vector<std::vector<int64_t>>& InferenceSession::get_output_tensor_dimensions() const {
+const std::vector<std::vector<int64_t>> &InferenceSession::get_output_tensor_dimensions() const {
     return m_output_tensor_dimension;
 }
 
-std::vector<Ort::Value> InferenceSession::run(const std::vector<Ort::Value>& input_tensors) {
+const std::vector<const char *> &InferenceSession::get_input_node_names() const {
+    return m_input_node_names;
+}
 
+const std::vector<const char *> &InferenceSession::get_output_node_names() const {
+    return m_output_node_names;
+}
+
+std::vector<Ort::Value> InferenceSession::run(const std::vector<Ort::Value> &input_tensors) {
     if (input_tensors.size() != m_input_node_names.size()) {
         throw std::runtime_error("input tensor size does not match input node size");
     }
@@ -67,9 +86,9 @@ std::vector<Ort::Value> InferenceSession::run(const std::vector<Ort::Value>& inp
     Ort::RunOptions run_options;
 
     // Inference here - how simple right?
-    const auto output_tensors = m_session->Run(
-        run_options, m_input_node_names.data(),
-        input_tensors.data(), input_tensors.size(),
+    auto output_tensors = m_session->Run(
+        run_options,
+        m_input_node_names.data(), input_tensors.data(), input_tensors.size(),
         m_output_node_names.data(), m_output_node_names.size()
     );
 
@@ -78,12 +97,41 @@ std::vector<Ort::Value> InferenceSession::run(const std::vector<Ort::Value>& inp
     }
 
     // Only set dimensions AFTER we have successful inference
-    if (m_input_tensor_dimension.empty() || m_output_tensor_dimension.empty()) {
-        m_input_tensor_dimension.reserve(input_tensors.size());
-        m_output_tensor_dimension.reserve(output_tensors.size());
+    if (m_input_tensor_dimension.empty()) {
+        set_tensor_shape(m_input_tensor_dimension, input_tensors);
+    }
+
+    if (m_output_tensor_dimension.empty()) {
+        set_tensor_shape(m_output_tensor_dimension, output_tensors);
     }
 
     return output_tensors;
 }
 
+void InferenceSession::run(const std::vector<Ort::Value> &input_tensors, std::vector<Ort::Value> &output_tensors) {
+    if (input_tensors.size() != m_input_node_names.size()) {
+        throw std::runtime_error("input tensor size does not match input node size");
+    }
 
+    if (output_tensors.size() != m_output_node_names.size()) {
+        throw std::runtime_error("output tensor size does not match output node size");
+    }
+
+    Ort::RunOptions run_options;
+
+    // Inference here - how simple right?
+    m_session->Run(
+        run_options,
+        m_input_node_names.data(), input_tensors.data(), input_tensors.size(),
+        m_output_node_names.data(), output_tensors.data(), output_tensors.size()
+    );
+
+    // Only set dimensions AFTER we have successful inference
+    if (m_input_tensor_dimension.empty()) {
+        set_tensor_shape(m_input_tensor_dimension, input_tensors);
+    }
+
+    if (m_output_tensor_dimension.empty()) {
+        set_tensor_shape(m_output_tensor_dimension, output_tensors);
+    }
+}
