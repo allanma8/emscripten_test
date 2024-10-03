@@ -3,7 +3,7 @@
 #include <emscripten.h>
 #include <emscripten/bind.h>
 
-#define PRINT_INFO 1
+#define PRINT_INFO 0
 
 #if PRINT_INFO
 #include <iostream>
@@ -15,25 +15,34 @@ namespace {
     constexpr size_t POSE_IMG_Y = 640;
     constexpr size_t POSE_IMG_DEPTH = 3;
 
-    constexpr std::array<int64_t, 4> POSE_INPUT_SHAPE = {POSE_BATCH, POSE_IMG_DEPTH, POSE_IMG_Y, POSE_IMG_X};
-
     constexpr size_t NMS_0 = 56;
     constexpr size_t NMS_1 = 8400;
 
+    constexpr std::array<int64_t, 4> POSE_INPUT_SHAPE = {POSE_BATCH, POSE_IMG_DEPTH, POSE_IMG_Y, POSE_IMG_X};
+    constexpr std::array<int64_t, 3> POSE_OUTPUT_SHAPE = {POSE_BATCH, NMS_0, NMS_1};
+
     constexpr std::array<int64_t, 2> NMS_INPUT_SHAPE = {NMS_0, NMS_1};
 
-    [[nodiscard]] int64_t accumulate_shape(const std::vector<int64_t>& shape) {
-        int64_t out = 0;
+    template<typename T>
+    [[nodiscard]] int64_t accumulate_shape(const T &shape) {
+        int64_t out = 1;
         for (const auto i: shape) {
-            out += i;
+            if (i == 0) {
+                continue;
+            }
+            out *= i;
         }
         return out;
     }
+
+    constexpr std::array<int64_t, 2> NMS_OUT_BOXES_SHAPE = {1, 4};
+    constexpr std::array<int64_t, 2> NMS_OUT_CLASSES_SHAPE = {1, 2};
+    constexpr std::array<int64_t, 2> NMS_OUT_FEATURES_SHAPE = {1, 51};
 }
 
 Inference::Inference(const size_t num_threads_intra, const size_t num_threads_inter)
     : m_input_buffer_size(POSE_IMG_X, POSE_IMG_Y, 4)
-    , m_input_buffer(std::get<0>(m_input_buffer_size) * std::get<1>(m_input_buffer_size) * std::get<2>(m_input_buffer_size)) {
+      , m_input_buffer(std::get<0>(m_input_buffer_size) * std::get<1>(m_input_buffer_size) * std::get<2>(m_input_buffer_size)) {
     Ort::ThreadingOptions threading_options;
 
     // Note: some of these options depend on parallel execution to be enabled in session options
@@ -50,9 +59,11 @@ Inference::Inference(const size_t num_threads_intra, const size_t num_threads_in
     warm_up();
 
     // Allocate output buffers because we know size and shit now.
-    m_output_boxes.resize(accumulate_shape(m_yolo_nms_session->get_output_tensor_dimensions().at(0)));
-    m_output_classes.resize(accumulate_shape(m_yolo_nms_session->get_output_tensor_dimensions().at(1)));
-    m_output_features.resize(accumulate_shape(m_yolo_nms_session->get_output_tensor_dimensions().at(2)));
+    m_pose_tensor_data.resize(accumulate_shape(POSE_OUTPUT_SHAPE));
+
+    m_output_boxes.resize(accumulate_shape(NMS_OUT_BOXES_SHAPE));
+    m_output_classes.resize(accumulate_shape(NMS_OUT_CLASSES_SHAPE));
+    m_output_features.resize(accumulate_shape(NMS_OUT_FEATURES_SHAPE));
 }
 
 void Inference::set_input_image_size(
@@ -62,7 +73,7 @@ void Inference::set_input_image_size(
 ) {
     // NOTE: THIS SHOULD NEVER BE CALLED RIGHT NOW!!
     // TODO: WAIT FOR RESCALE TO BE IMPLEMENTED BEFORE REMOVING THROW
-    auto& [ m_width, m_height, m_channels ] = m_input_buffer_size;
+    auto &[m_width, m_height, m_channels] = m_input_buffer_size;
 
     // Don't get angry if we are setting as the same
     if (m_width == width && m_height == height && m_channels == channels) {
@@ -95,7 +106,7 @@ void Inference::run_frame() {
     const auto row_stride = POSE_IMG_X * channels;
 
     // Normalised and scaled data - this should be done with opencv
-    std::vector<float> input_data(POSE_IMG_X * POSE_IMG_Y * POSE_IMG_DEPTH);
+    std::array<float, POSE_IMG_X * POSE_IMG_Y * POSE_IMG_DEPTH> input_data = {};
 
     for (size_t y = 0, i = 0; y < POSE_IMG_Y; y++) {
         const size_t row_offset = row_stride * y;
@@ -113,6 +124,10 @@ void Inference::run_frame() {
 
     const auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 
+    //
+    // Pose
+    //
+
     std::vector<Ort::Value> pose_input_tensor;
     pose_input_tensor.reserve(1);
 
@@ -122,24 +137,52 @@ void Inference::run_frame() {
         POSE_INPUT_SHAPE.data(), POSE_INPUT_SHAPE.size()
     ));
 
-    auto pose_output_tensors = m_yolo_pose_session->run(pose_input_tensor);
-    auto& pose_output_tensor = pose_output_tensors.at(0);
+    std::vector<Ort::Value> pose_output_tensor;
+    pose_output_tensor.reserve(1);
+
+    pose_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
+        memory_info,
+        m_pose_tensor_data.data(), m_pose_tensor_data.size(),
+        POSE_OUTPUT_SHAPE.data(), POSE_OUTPUT_SHAPE.size()
+    ));
+
+    m_yolo_pose_session->run(pose_input_tensor, pose_output_tensor);
+
+    //
+    // NMS
+    //
 
     std::vector<Ort::Value> nms_input_tensor;
     nms_input_tensor.reserve(1);
 
     nms_input_tensor.emplace_back(Ort::Value::CreateTensor<float>(
         memory_info,
-        pose_output_tensor.GetTensorMutableData<float>(), NMS_0 * NMS_1,
+        m_pose_tensor_data.data(), m_pose_tensor_data.size(),
         NMS_INPUT_SHAPE.data(), NMS_INPUT_SHAPE.size()
     ));
 
-    const auto nms_output_tensors = m_yolo_nms_session->run(nms_input_tensor);
+    std::vector<Ort::Value> nms_output_tensor;
+    nms_output_tensor.reserve(3);
 
-    // This memcpy is un-needed - we can get rid of it by supplying output tensors
-    std::memcpy(m_output_boxes.data(), nms_output_tensors.at(0).GetTensorData<float>(), m_output_boxes.size());
-    std::memcpy(m_output_classes.data(), nms_output_tensors.at(1).GetTensorData<float>(), m_output_classes.size());
-    std::memcpy(m_output_features.data(), nms_output_tensors.at(2).GetTensorData<float>(), m_output_features.size());
+    nms_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
+        memory_info,
+        m_output_boxes.data(), m_output_boxes.size(),
+        NMS_OUT_BOXES_SHAPE.data(), NMS_OUT_BOXES_SHAPE.size()
+    ));
+
+    nms_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
+        memory_info,
+        m_output_classes.data(), m_output_classes.size(),
+        NMS_OUT_CLASSES_SHAPE.data(), NMS_OUT_CLASSES_SHAPE.size()
+    ));
+
+    nms_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
+        memory_info,
+        m_output_features.data(), m_output_features.size(),
+        NMS_OUT_FEATURES_SHAPE.data(), NMS_OUT_FEATURES_SHAPE.size()
+    ));
+
+    m_yolo_nms_session->run(nms_input_tensor, nms_output_tensor);
 }
 
 size_t Inference::get_input_image_size_width() const {
@@ -246,14 +289,14 @@ void Inference::warm_up() const {
 
 EMSCRIPTEN_BINDINGS(inference_module) {
     emscripten::class_<Inference>("Inference")
-        .constructor<size_t, size_t>()
-        .function("set_input_image_size", &Inference::set_input_image_size)
-        .function("run_frame", &Inference::run_frame)
-        .function("get_input_image_size_width", &Inference::get_input_image_size_width)
-        .function("get_input_image_size_height", &Inference::get_input_image_size_height)
-        .function("get_input_image_size_channels", &Inference::get_input_image_size_channels)
-        .function("get_input_image_buffer", &Inference::get_input_image_buffer)
-        .function("get_output_boxes", &Inference::get_output_boxes)
-        .function("get_output_classes", &Inference::get_output_classes)
-        .function("get_output_features", &Inference::get_output_features);
+            .constructor<size_t, size_t>()
+            .function("set_input_image_size", &Inference::set_input_image_size)
+            .function("run_frame", &Inference::run_frame)
+            .function("get_input_image_size_width", &Inference::get_input_image_size_width)
+            .function("get_input_image_size_height", &Inference::get_input_image_size_height)
+            .function("get_input_image_size_channels", &Inference::get_input_image_size_channels)
+            .function("get_input_image_buffer", &Inference::get_input_image_buffer)
+            .function("get_output_boxes", &Inference::get_output_boxes)
+            .function("get_output_classes", &Inference::get_output_classes)
+            .function("get_output_features", &Inference::get_output_features);
 }

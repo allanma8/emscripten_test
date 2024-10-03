@@ -63,4 +63,7 @@ private:
     std::vector<float> m_output_boxes;
     std::vector<float> m_output_classes;
     std::vector<float> m_output_features;
+
+    // Temporary buffers
+    std::vector<float> m_pose_tensor_data;
 };
