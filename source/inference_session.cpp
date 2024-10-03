@@ -78,36 +78,6 @@ const std::vector<const char *> &InferenceSession::get_output_node_names() const
     return m_output_node_names;
 }
 
-std::vector<Ort::Value> InferenceSession::run(const std::vector<Ort::Value> &input_tensors) {
-    if (input_tensors.size() != m_input_node_names.size()) {
-        throw std::runtime_error("input tensor size does not match input node size");
-    }
-
-    Ort::RunOptions run_options;
-
-    // Inference here - how simple right?
-    auto output_tensors = m_session->Run(
-        run_options,
-        m_input_node_names.data(), input_tensors.data(), input_tensors.size(),
-        m_output_node_names.data(), m_output_node_names.size()
-    );
-
-    if (output_tensors.size() != m_output_node_names.size()) {
-        throw std::runtime_error("output tensor size does not match output node size");
-    }
-
-    // Only set dimensions AFTER we have successful inference
-    if (m_input_tensor_dimension.empty()) {
-        set_tensor_shape(m_input_tensor_dimension, input_tensors);
-    }
-
-    if (m_output_tensor_dimension.empty()) {
-        set_tensor_shape(m_output_tensor_dimension, output_tensors);
-    }
-
-    return output_tensors;
-}
-
 void InferenceSession::run(const std::vector<Ort::Value> &input_tensors, std::vector<Ort::Value> &output_tensors) {
     if (input_tensors.size() != m_input_node_names.size()) {
         throw std::runtime_error("input tensor size does not match input node size");
