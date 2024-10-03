@@ -242,7 +242,14 @@ void Inference::warm_up() const {
             POSE_INPUT_SHAPE.data(), POSE_INPUT_SHAPE.size()
         ));
 
-        [[maybe_unused]] const auto output_tensor = m_yolo_pose_session->run(input_tensor);
+        std::vector<Ort::Value> output_tensor;
+        output_tensor.reserve(1);
+
+        for (size_t i = 0; i < 1; i++) {
+            output_tensor.emplace_back(nullptr);
+        }
+
+        m_yolo_pose_session->run(input_tensor, output_tensor);
 
 #if PRINT_INFO
         for (const auto input_name: m_yolo_pose_session->get_input_node_names()) {
@@ -273,7 +280,14 @@ void Inference::warm_up() const {
             NMS_INPUT_SHAPE.data(), NMS_INPUT_SHAPE.size()
         ));
 
-        [[maybe_unused]] const auto output_tensor = m_yolo_nms_session->run(input_tensor);
+        std::vector<Ort::Value> output_tensor;
+        output_tensor.reserve(3);
+
+        for (size_t i = 0; i < 3; i++) {
+            output_tensor.emplace_back(nullptr);
+        }
+
+        m_yolo_nms_session->run(input_tensor, output_tensor);
 
 #if PRINT_INFO
         for (const auto input_name: m_yolo_nms_session->get_input_node_names()) {

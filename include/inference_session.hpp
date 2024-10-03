@@ -25,12 +25,8 @@ public:
     [[nodiscard]] const std::vector<const char*>& get_output_node_names()   const;
 
     //! Perform inference on the model
-    //! \note first call MAY be very slow since we need to calculate/save some data.
-    //! \param input_tensors input tensors.
-    [[nodiscard]] std::vector<Ort::Value> run(const std::vector<Ort::Value>& input_tensors);
-
-    //! Perform inference on the model
-    //! \note this overload assumes you know the input and output tensors and shapes
+    //! \note this overload assumes you know the input and output shape.
+    //! \note if you don't know the output shape, you can pass nullptr to each element in `output_tensor`
     //! \param input_tensors input tensors.
     //! \param output_tensors output_tensors.
     void run(const std::vector<Ort::Value>& input_tensors, std::vector<Ort::Value>& output_tensors);
