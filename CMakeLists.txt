@@ -48,6 +48,7 @@ set(
         -s PTHREAD_POOL_SIZE=Module[\\\"numThreads\\\"]-1
         -s EXIT_RUNTIME=0
         -s WASM_BIGINT=1
+        -s MALLOC=mimalloc
         --no-entry
         --preload-file ${CMAKE_SOURCE_DIR}/data@/data
 )

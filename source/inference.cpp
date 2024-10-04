@@ -35,9 +35,19 @@ namespace {
         return out;
     }
 
+    // Note: NMS will output a dynamic number of detections however we only care about the first
+    // Note: DO NOT USE THIS TO CREATE TENSORS
     constexpr std::array<int64_t, 2> NMS_OUT_BOXES_SHAPE = {1, 4};
     constexpr std::array<int64_t, 2> NMS_OUT_CLASSES_SHAPE = {1, 2};
     constexpr std::array<int64_t, 2> NMS_OUT_FEATURES_SHAPE = {1, 51};
+
+    // I'm lazy this is a helper!
+    std::vector<int64_t> get_tensor_shape(const Ort::Value& tensor) {
+        const auto type_info = tensor.GetTypeInfo();
+        const auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
+
+        return tensor_info.GetShape();
+    }
 }
 
 Inference::Inference(const size_t num_threads_intra, const size_t num_threads_inter)
@@ -164,25 +174,21 @@ void Inference::run_frame() {
     std::vector<Ort::Value> nms_output_tensor;
     nms_output_tensor.reserve(3);
 
-    nms_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-        memory_info,
-        m_output_boxes.data(), m_output_boxes.size(),
-        NMS_OUT_BOXES_SHAPE.data(), NMS_OUT_BOXES_SHAPE.size()
-    ));
-
-    nms_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-        memory_info,
-        m_output_classes.data(), m_output_classes.size(),
-        NMS_OUT_CLASSES_SHAPE.data(), NMS_OUT_CLASSES_SHAPE.size()
-    ));
-
-    nms_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-        memory_info,
-        m_output_features.data(), m_output_features.size(),
-        NMS_OUT_FEATURES_SHAPE.data(), NMS_OUT_FEATURES_SHAPE.size()
-    ));
+    nms_output_tensor.emplace_back(nullptr);
+    nms_output_tensor.emplace_back(nullptr);
+    nms_output_tensor.emplace_back(nullptr);
 
     m_yolo_nms_session->run(nms_input_tensor, nms_output_tensor);
+
+    // All outputs of this model use the format [detections, _]
+    const auto num_detections = get_tensor_shape(nms_output_tensor.at(0)).at(0);
+
+    if (num_detections > 0) {
+        // Only do the copy if we have detections
+        std::memcpy(m_output_boxes.data(), nms_output_tensor.at(0).GetTensorMutableData<float>(), m_output_boxes.size() * sizeof(float));
+        std::memcpy(m_output_classes.data(), nms_output_tensor.at(1).GetTensorMutableData<float>(), m_output_classes.size() * sizeof(float));
+        std::memcpy(m_output_features.data(), nms_output_tensor.at(2).GetTensorMutableData<float>(), m_output_features.size() * sizeof(float));
+    }
 }
 
 size_t Inference::get_input_image_size_width() const {
