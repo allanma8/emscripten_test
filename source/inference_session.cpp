@@ -1,20 +1,5 @@
 #include <inference_session.hpp>
 
-namespace {
-    // Helper ?? Maybe move this somewhere else IDK
-    void set_tensor_shape(std::vector<std::vector<int64_t>>& output, const std::vector<Ort::Value> &tensors) {
-        output.clear();
-        output.reserve(tensors.size());
-
-        for (const auto &tensor: tensors) {
-            const auto type_info = tensor.GetTypeInfo();
-            const auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
-
-            output.emplace_back(tensor_info.GetShape());
-        }
-    }
-}
-
 InferenceSession::InferenceSession(const std::shared_ptr<Ort::Env> &environment, const std::string &model_file)
     : m_environment(environment) {
     Ort::SessionOptions session_options;
@@ -62,14 +47,6 @@ InferenceSession::~InferenceSession() {
     }
 }
 
-const std::vector<std::vector<int64_t>> &InferenceSession::get_input_tensor_dimension() const {
-    return m_input_tensor_dimension;
-}
-
-const std::vector<std::vector<int64_t>> &InferenceSession::get_output_tensor_dimensions() const {
-    return m_output_tensor_dimension;
-}
-
 const std::vector<const char *> &InferenceSession::get_input_node_names() const {
     return m_input_node_names;
 }
@@ -78,7 +55,7 @@ const std::vector<const char *> &InferenceSession::get_output_node_names() const
     return m_output_node_names;
 }
 
-void InferenceSession::run(const std::vector<Ort::Value> &input_tensors, std::vector<Ort::Value> &output_tensors) {
+void InferenceSession::run(const std::vector<Ort::Value> &input_tensors, std::vector<Ort::Value> &output_tensors) const {
     if (input_tensors.size() != m_input_node_names.size()) {
         throw std::runtime_error("input tensor size does not match input node size");
     }
@@ -95,13 +72,4 @@ void InferenceSession::run(const std::vector<Ort::Value> &input_tensors, std::ve
         m_input_node_names.data(), input_tensors.data(), input_tensors.size(),
         m_output_node_names.data(), output_tensors.data(), output_tensors.size()
     );
-
-    // Only set dimensions AFTER we have successful inference
-    if (m_input_tensor_dimension.empty()) {
-        set_tensor_shape(m_input_tensor_dimension, input_tensors);
-    }
-
-    if (m_output_tensor_dimension.empty()) {
-        set_tensor_shape(m_output_tensor_dimension, output_tensors);
-    }
 }
