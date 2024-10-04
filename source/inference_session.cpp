@@ -54,22 +54,3 @@ const std::vector<const char *> &InferenceSession::get_input_node_names() const 
 const std::vector<const char *> &InferenceSession::get_output_node_names() const {
     return m_output_node_names;
 }
-
-void InferenceSession::run(const std::vector<Ort::Value> &input_tensors, std::vector<Ort::Value> &output_tensors) const {
-    if (input_tensors.size() != m_input_node_names.size()) {
-        throw std::runtime_error("input tensor size does not match input node size");
-    }
-
-    if (output_tensors.size() != m_output_node_names.size()) {
-        throw std::runtime_error("output tensor size does not match output node size");
-    }
-
-    Ort::RunOptions run_options;
-
-    // Inference here - how simple right?
-    m_session->Run(
-        run_options,
-        m_input_node_names.data(), input_tensors.data(), input_tensors.size(),
-        m_output_node_names.data(), output_tensors.data(), output_tensors.size()
-    );
-}
