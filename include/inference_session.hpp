@@ -21,7 +21,25 @@ public:
     //! \note if you don't know the output shape, you can pass nullptr to each element in `output_tensor`
     //! \param input_tensors input tensors.
     //! \param output_tensors output_tensors.
-    void run(const std::vector<Ort::Value>& input_tensors, std::vector<Ort::Value>& output_tensors) const;
+    template<typename ContainerIn, typename ContainerOut>
+    void run(const ContainerIn& input_tensors, ContainerOut& output_tensors) const {
+        if (input_tensors.size() != m_input_node_names.size()) {
+            throw std::runtime_error("input tensor size does not match input node size");
+        }
+
+        if (output_tensors.size() != m_output_node_names.size()) {
+            throw std::runtime_error("output tensor size does not match output node size");
+        }
+
+        Ort::RunOptions run_options;
+
+        // Inference here - how simple right?
+        m_session->Run(
+            run_options,
+            m_input_node_names.data(), input_tensors.data(), input_tensors.size(),
+            m_output_node_names.data(), output_tensors.data(), output_tensors.size()
+        );
+    }
 
 public:
     InferenceSession(const InferenceSession&)   = delete;

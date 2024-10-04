@@ -42,7 +42,7 @@ namespace {
     constexpr std::array<int64_t, 2> NMS_OUT_FEATURES_SHAPE = {1, 51};
 
     // I'm lazy this is a helper!
-    std::vector<int64_t> get_tensor_shape(const Ort::Value& tensor) {
+    std::vector<int64_t> get_tensor_shape(const Ort::Value &tensor) {
         const auto type_info = tensor.GetTypeInfo();
         const auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
 
@@ -138,23 +138,21 @@ void Inference::run_frame() {
     // Pose
     //
 
-    std::vector<Ort::Value> pose_input_tensor;
-    pose_input_tensor.reserve(1);
+    const std::array<Ort::Value, 1> pose_input_tensor = {
+        Ort::Value::CreateTensor<float>(
+            memory_info,
+            input_data.data(), POSE_IMG_X * POSE_IMG_Y * POSE_IMG_DEPTH,
+            POSE_INPUT_SHAPE.data(), POSE_INPUT_SHAPE.size()
+        )
+    };
 
-    pose_input_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-        memory_info,
-        input_data.data(), POSE_IMG_X * POSE_IMG_Y * POSE_IMG_DEPTH,
-        POSE_INPUT_SHAPE.data(), POSE_INPUT_SHAPE.size()
-    ));
-
-    std::vector<Ort::Value> pose_output_tensor;
-    pose_output_tensor.reserve(1);
-
-    pose_output_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-        memory_info,
-        m_pose_tensor_data.data(), m_pose_tensor_data.size(),
-        POSE_OUTPUT_SHAPE.data(), POSE_OUTPUT_SHAPE.size()
-    ));
+    std::array<Ort::Value, 1> pose_output_tensor = {
+        Ort::Value::CreateTensor<float>(
+            memory_info,
+            m_pose_tensor_data.data(), m_pose_tensor_data.size(),
+            POSE_OUTPUT_SHAPE.data(), POSE_OUTPUT_SHAPE.size()
+        )
+    };
 
     m_yolo_pose_session->run(pose_input_tensor, pose_output_tensor);
 
@@ -162,21 +160,19 @@ void Inference::run_frame() {
     // NMS
     //
 
-    std::vector<Ort::Value> nms_input_tensor;
-    nms_input_tensor.reserve(1);
+    const std::array<Ort::Value, 1> nms_input_tensor = {
+        Ort::Value::CreateTensor<float>(
+            memory_info,
+            m_pose_tensor_data.data(), m_pose_tensor_data.size(),
+            NMS_INPUT_SHAPE.data(), NMS_INPUT_SHAPE.size()
+        )
+    };
 
-    nms_input_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-        memory_info,
-        m_pose_tensor_data.data(), m_pose_tensor_data.size(),
-        NMS_INPUT_SHAPE.data(), NMS_INPUT_SHAPE.size()
-    ));
-
-    std::vector<Ort::Value> nms_output_tensor;
-    nms_output_tensor.reserve(3);
-
-    nms_output_tensor.emplace_back(nullptr);
-    nms_output_tensor.emplace_back(nullptr);
-    nms_output_tensor.emplace_back(nullptr);
+    std::array<Ort::Value, 3> nms_output_tensor = {
+        Ort::Value{nullptr},
+        Ort::Value{nullptr},
+        Ort::Value{nullptr}
+    };
 
     m_yolo_nms_session->run(nms_input_tensor, nms_output_tensor);
 
@@ -239,21 +235,17 @@ void Inference::warm_up() const {
         // Dummy data - nothing just to run once
         std::vector<float> data(POSE_IMG_X * POSE_IMG_Y * POSE_IMG_DEPTH, 0.f);
 
-        std::vector<Ort::Value> input_tensor;
-        input_tensor.reserve(1);
+        const std::array<Ort::Value, 1> input_tensor = {
+            Ort::Value::CreateTensor<float>(
+                memory_info,
+                data.data(), data.size(),
+                POSE_INPUT_SHAPE.data(), POSE_INPUT_SHAPE.size()
+            )
+        };
 
-        input_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-            memory_info,
-            data.data(), data.size(),
-            POSE_INPUT_SHAPE.data(), POSE_INPUT_SHAPE.size()
-        ));
-
-        std::vector<Ort::Value> output_tensor;
-        output_tensor.reserve(1);
-
-        for (size_t i = 0; i < 1; i++) {
-            output_tensor.emplace_back(nullptr);
-        }
+        std::array<Ort::Value, 1> output_tensor = {
+            Ort::Value{nullptr}
+        };
 
         m_yolo_pose_session->run(input_tensor, output_tensor);
 
@@ -277,21 +269,19 @@ void Inference::warm_up() const {
         // Dummy data - nothing just to run once;
         std::vector<float> data(NMS_0 * NMS_1, 0.f);
 
-        std::vector<Ort::Value> input_tensor;
-        input_tensor.reserve(1);
+        const std::array<Ort::Value, 1> input_tensor = {
+            Ort::Value::CreateTensor<float>(
+                memory_info,
+                data.data(), data.size(),
+                NMS_INPUT_SHAPE.data(), NMS_INPUT_SHAPE.size()
+            )
+        };
 
-        input_tensor.emplace_back(Ort::Value::CreateTensor<float>(
-            memory_info,
-            data.data(), data.size(),
-            NMS_INPUT_SHAPE.data(), NMS_INPUT_SHAPE.size()
-        ));
-
-        std::vector<Ort::Value> output_tensor;
-        output_tensor.reserve(3);
-
-        for (size_t i = 0; i < 3; i++) {
-            output_tensor.emplace_back(nullptr);
-        }
+        std::array<Ort::Value, 3> output_tensor = {
+            Ort::Value{nullptr},
+            Ort::Value{nullptr},
+            Ort::Value{nullptr}
+        };
 
         m_yolo_nms_session->run(input_tensor, output_tensor);
 
