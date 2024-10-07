@@ -9,14 +9,14 @@
 
 ### Building onnxruntime wasm binaries (tested with 1.19.2)
 
+**Note: you must build onnxruntime outside the dev container (i.e: on your host machine)**
+
+**Note: this is not required, you can skip this step if you're not updating onnxruntime**
+
 Statically linkable wasm binaries are not provided by Microsoft, we need to build them our selves from source.
-Follow [these step](https://onnxruntime.ai/docs/build/web.html) but make the following changes:
+Official steps for setting up the build environment can be found [here](https://onnxruntime.ai/docs/build/web.html). 
 
-- change `latest` in `./emsdk install latest` and `./emsdk activate latest` to the same version as defined in `builder.dockerfile`
-- always use `--enable_wasm_threads	--enable_wasm_simd`
-- change `--build_wasm` to `--build_wasm_static_lib`
-
-The complete build command should be: 
+The build command used to produce the artifact should be: 
 
 - `./build.sh --config Release --build_wasm_static_lib --skip_tests --enable_wasm_simd --enable_wasm_threads --disable_wasm_exception_catching --disable_rtti --parallel`
 
@@ -27,29 +27,17 @@ Relevant header files should also be copied
 - `include/onnxruntime/core/session/onnxruntime_cxx_inline.h`
 - `include/onnxruntime/core/session/onnxruntime_float16.h`
 
-Relevant static objects should be `libonnxruntime_webassembly.a`
+Relevant static objects should be `libonnxruntime_webassembly.a` (renamed to `libonnxruntime.a`)
 
-### Building this library
+### Building the library
 
 - Start the DevPod and connect to it.
 - Make sure you set `-DCMAKE_TOOLCHAIN_FILE=/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake`
-- Build
+- Build through your IDE or the CLI.
 
-## Example
+## Adding new models/resources
 
-Create a Javascript file and paste the following code
+Wasm doesn't support IO operations by default. Emscripten emulates a virtual filesystem during runtime to get around this. 
 
-```javascript
-const liblerp = require('<path to wasm module>.js');
-
-// Instantiate liblerp by calling it. Promise returns an instance
-// which contains your exported function.
-liblerp()
-.then(instance => {
-  console.log(`${instance.lerp(100, 200, 0.5)}`);
-  console.log(`${instance.lerp(10, 20, 0.5)}`);
-  console.log(`${instance.lerp(1, 2, 0.5)}`);
-});
-```
-
-Then run using node: `node ./<file>.js`
+The repo is set up to include files from the `data` folder in the virtual filesystem. The runtime path to any file inside the virtual
+file system have the root directory `data`. Eg: `./data/mul_1.onnx` has a runtime path of `data/mul_1.onnx`. 
