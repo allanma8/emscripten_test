@@ -1,7 +1,6 @@
-#include <inference.hpp>
+#include <inference_yolo.hpp>
 
-#include <emscripten.h>
-#include <emscripten/bind.h>
+#include <helper/tensor_utils.hpp>
 
 #define PRINT_INFO 0
 
@@ -40,30 +39,14 @@ namespace {
     constexpr std::array<int64_t, 2> NMS_OUT_BOXES_SHAPE = {1, 4};
     constexpr std::array<int64_t, 2> NMS_OUT_CLASSES_SHAPE = {1, 2};
     constexpr std::array<int64_t, 2> NMS_OUT_FEATURES_SHAPE = {1, 51};
-
-    // I'm lazy this is a helper!
-    std::vector<int64_t> get_tensor_shape(const Ort::Value &tensor) {
-        const auto type_info = tensor.GetTypeInfo();
-        const auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
-
-        return tensor_info.GetShape();
-    }
 }
 
-Inference::Inference(const size_t num_threads_intra, const size_t num_threads_inter)
-    : m_input_buffer_size(POSE_IMG_X, POSE_IMG_Y, 4)
-      , m_input_buffer(std::get<0>(m_input_buffer_size) * std::get<1>(m_input_buffer_size) * std::get<2>(m_input_buffer_size)) {
-    Ort::ThreadingOptions threading_options;
-
-    // Note: some of these options depend on parallel execution to be enabled in session options
-    threading_options.SetGlobalIntraOpNumThreads(static_cast<int>(num_threads_intra));
-    threading_options.SetGlobalInterOpNumThreads(static_cast<int>(num_threads_inter));
-
-    m_environment = std::make_shared<Ort::Env>(threading_options, OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING);
-
+Inference_Yolo::Inference_Yolo(const size_t num_threads_intra, const size_t num_threads_inter)
+    : Inference(num_threads_intra, num_threads_inter)
+      , m_input_image_size(POSE_IMG_X, POSE_IMG_Y, 4) {
     // Set up the two different models we currently use - this might be more later??
-    m_yolo_pose_session = std::make_unique<InferenceSession>(m_environment, "data/yolov8n-pose.onnx");
-    m_yolo_nms_session = std::make_unique<InferenceSession>(m_environment, "data/yolov8nms-pose.onnx");
+    m_yolo_pose_session = std::make_unique<InferenceSession>(get_environment(), "data/yolov8n-pose.onnx");
+    m_yolo_nms_session = std::make_unique<InferenceSession>(get_environment(), "data/yolov8nms-pose.onnx");
 
     // This will run things once with null data just to get the gears turning.
     warm_up();
@@ -71,19 +54,20 @@ Inference::Inference(const size_t num_threads_intra, const size_t num_threads_in
     // Allocate output buffers because we know size and shit now.
     m_pose_tensor_data.resize(accumulate_shape(POSE_OUTPUT_SHAPE));
 
-    m_output_boxes.resize(accumulate_shape(NMS_OUT_BOXES_SHAPE));
-    m_output_classes.resize(accumulate_shape(NMS_OUT_CLASSES_SHAPE));
-    m_output_features.resize(accumulate_shape(NMS_OUT_FEATURES_SHAPE));
+    const auto [width, height, channels] = m_input_image_size;
+
+    set_input_buffer_size(width * height * channels);
+    set_output_buffer_size(accumulate_shape(NMS_OUT_FEATURES_SHAPE));
 }
 
-void Inference::set_input_image_size(
+void Inference_Yolo::set_input_image_size(
     const size_t width,
     const size_t height,
     const size_t channels
 ) {
     // NOTE: THIS SHOULD NEVER BE CALLED RIGHT NOW!!
     // TODO: WAIT FOR RESCALE TO BE IMPLEMENTED BEFORE REMOVING THROW
-    auto &[m_width, m_height, m_channels] = m_input_buffer_size;
+    auto &[m_width, m_height, m_channels] = m_input_image_size;
 
     // Don't get angry if we are setting as the same
     if (m_width == width && m_height == height && m_channels == channels) {
@@ -98,14 +82,14 @@ void Inference::set_input_image_size(
     m_height = height;
     m_channels = channels;
 
-    m_input_buffer.resize(width * height * channels);
+    set_input_buffer_size(width * height * channels);
 }
 
-void Inference::run_frame() {
+void Inference_Yolo::run_frame() {
     // TODO: IMPLEMENT RESCALE USING OPENCV IF NOT 640/640
     // TODO: IMPLEMENT NORMALISE USING OPENCV
     // NOTE: THIS WHOLE FUNCTION IS SKETCHY AS SHIT REWRITE IT PROPERLY LATER
-    const auto [width, height, channels] = m_input_buffer_size;
+    const auto [width, height, channels] = m_input_image_size;
 
     if (width != POSE_IMG_X || height != POSE_IMG_Y || channels != 4) {
         throw std::runtime_error("you somehow managed to break this. well done!");
@@ -116,6 +100,7 @@ void Inference::run_frame() {
     const auto row_stride = POSE_IMG_X * channels;
 
     // Normalised and scaled data - this should be done with opencv
+    const auto &input_buffer = get_input_buffer();
     std::array<float, POSE_IMG_X * POSE_IMG_Y * POSE_IMG_DEPTH> input_data = {};
 
     for (size_t y = 0, i = 0; y < POSE_IMG_Y; y++) {
@@ -124,9 +109,9 @@ void Inference::run_frame() {
         for (size_t x = 0; x < POSE_IMG_X; x++) {
             const size_t pixel_offset = row_offset + x * 4;
 
-            input_data[i]                               = static_cast<float>(m_input_buffer[pixel_offset]) * inverse_scale;
-            input_data[i + POSE_IMG_X * POSE_IMG_Y]     = static_cast<float>(m_input_buffer[pixel_offset + 1]) * inverse_scale;
-            input_data[i + 2 * POSE_IMG_X * POSE_IMG_Y] = static_cast<float>(m_input_buffer[pixel_offset + 2]) * inverse_scale;
+            input_data[i]                               = static_cast<float>(input_buffer[pixel_offset]) * inverse_scale;
+            input_data[i + POSE_IMG_X * POSE_IMG_Y]     = static_cast<float>(input_buffer[pixel_offset + 1]) * inverse_scale;
+            input_data[i + 2 * POSE_IMG_X * POSE_IMG_Y] = static_cast<float>(input_buffer[pixel_offset + 2]) * inverse_scale;
 
             i++;
         }
@@ -177,57 +162,45 @@ void Inference::run_frame() {
     m_yolo_nms_session->run(nms_input_tensor, nms_output_tensor);
 
     // All outputs of this model use the format [detections, _]
-    const auto num_detections = get_tensor_shape(nms_output_tensor.at(0)).at(0);
+    const auto num_detections = helper::get_tensor_shape(nms_output_tensor.at(0)).at(0);
 
     if (num_detections > 0) {
-        // Only do the copy if we have detections
-        std::memcpy(m_output_boxes.data(), nms_output_tensor.at(0).GetTensorMutableData<float>(), m_output_boxes.size() * sizeof(float));
-        std::memcpy(m_output_classes.data(), nms_output_tensor.at(1).GetTensorMutableData<float>(), m_output_classes.size() * sizeof(float));
-        std::memcpy(m_output_features.data(), nms_output_tensor.at(2).GetTensorMutableData<float>(), m_output_features.size() * sizeof(float));
+        auto &output_buffer = get_output_buffer();
+        std::copy_n(
+            nms_output_tensor.at(2).GetTensorMutableData<float>(),
+            output_buffer.size(),
+            output_buffer.begin()
+        );
     }
 }
 
-size_t Inference::get_input_image_size_width() const {
-    return std::get<0>(m_input_buffer_size);
+size_t Inference_Yolo::get_input_image_size_width() const {
+    return std::get<0>(m_input_image_size);
 }
 
-size_t Inference::get_input_image_size_height() const {
-    return std::get<1>(m_input_buffer_size);
+size_t Inference_Yolo::get_input_image_size_height() const {
+    return std::get<1>(m_input_image_size);
 }
 
-size_t Inference::get_input_image_size_channels() const {
-    return std::get<2>(m_input_buffer_size);
+size_t Inference_Yolo::get_input_image_size_channels() const {
+    return std::get<2>(m_input_image_size);
 }
 
-emscripten::val Inference::get_input_image_buffer() const {
+emscripten::val Inference_Yolo::get_input_buffer_val() {
     return emscripten::val(emscripten::typed_memory_view(
-        m_input_buffer.size(),
-        m_input_buffer.data()
+        get_input_buffer().size(),
+        get_input_buffer().data()
     ));
 }
 
-emscripten::val Inference::get_output_boxes() const {
+emscripten::val Inference_Yolo::get_output_buffer_val() {
     return emscripten::val(emscripten::typed_memory_view(
-        m_output_boxes.size(),
-        m_output_boxes.data()
+        get_output_buffer().size(),
+        get_output_buffer().data()
     ));
 }
 
-emscripten::val Inference::get_output_classes() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        m_output_classes.size(),
-        m_output_classes.data()
-    ));
-}
-
-emscripten::val Inference::get_output_features() const {
-    return emscripten::val(emscripten::typed_memory_view(
-        m_output_features.size(),
-        m_output_features.data()
-    ));
-}
-
-void Inference::warm_up() const {
+void Inference_Yolo::warm_up() const {
     const auto memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
 
     // Pose
@@ -298,15 +271,13 @@ void Inference::warm_up() const {
 }
 
 EMSCRIPTEN_BINDINGS(inference_module) {
-    emscripten::class_<Inference>("Inference")
+    emscripten::class_<Inference_Yolo>("Inference_Yolo")
             .constructor<size_t, size_t>()
-            .function("set_input_image_size", &Inference::set_input_image_size)
-            .function("run_frame", &Inference::run_frame)
-            .function("get_input_image_size_width", &Inference::get_input_image_size_width)
-            .function("get_input_image_size_height", &Inference::get_input_image_size_height)
-            .function("get_input_image_size_channels", &Inference::get_input_image_size_channels)
-            .function("get_input_image_buffer", &Inference::get_input_image_buffer)
-            .function("get_output_boxes", &Inference::get_output_boxes)
-            .function("get_output_classes", &Inference::get_output_classes)
-            .function("get_output_features", &Inference::get_output_features);
+            .function("set_input_image_size", &Inference_Yolo::set_input_image_size)
+            .function("run_frame", &Inference_Yolo::run_frame)
+            .function("get_input_image_size_width", &Inference_Yolo::get_input_image_size_width)
+            .function("get_input_image_size_height", &Inference_Yolo::get_input_image_size_height)
+            .function("get_input_image_size_channels", &Inference_Yolo::get_input_image_size_channels)
+            .function("get_input_buffer_val", &Inference_Yolo::get_input_buffer_val)
+            .function("get_output_buffer_val", &Inference_Yolo::get_output_buffer_val);
 }

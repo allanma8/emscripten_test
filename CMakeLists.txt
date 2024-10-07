@@ -129,9 +129,10 @@ string (REPLACE ";" " " LINKER_FLAGS_STR "${LINKER_FLAGS}")
 
 set(
     SOURCE_FILES
-        source/library.cpp
-        source/inference.cpp
-        source/inference_session.cpp
+        source/base/inference_session.cpp
+        source/helper/library.cpp
+        source/inference_mediapipe.cpp
+        source/inference_yolo.cpp
 )
 
 # We need to make this an executable target even though it's meant to be a library. This is because emscripten

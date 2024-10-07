@@ -1,15 +1,11 @@
 #pragma once
 
-#include <emscripten/bind.h>
-
-#include <onnxruntime_cxx_api.h>
-
-#include <inference_session.hpp>
+#include <base/inference.hpp>
 
 //! Main inference class - this will hold all the "black box" logic that our front end will interact with
-class Inference {
+class Inference_Yolo: public Inference<Inference_Yolo, float, float> {
 public:
-    explicit Inference(size_t num_threads_intra, size_t num_threads_inter);
+    explicit Inference_Yolo(size_t num_threads_intra, size_t num_threads_inter);
 
     //! Set the buffer size from the javascript side.
     //! \note: this assumes everything is in bytes.
@@ -31,38 +27,20 @@ public:
     //! Get the current image buffer channels.
     [[nodiscard]] size_t get_input_image_size_channels() const;
 
-    //! Get the image input buffer that we will write to from javascript.
-    //! \note Input.
-    [[nodiscard]] emscripten::val get_input_image_buffer() const;
+    //! General purpose input buffer we write to in javascript.
+    [[nodiscard]] emscripten::val get_input_buffer_val();
 
-    //! Get boxes tensor output.
-    //! \note Output.
-    [[nodiscard]] emscripten::val get_output_boxes() const;
-
-    //! Get classes tensor output.
-    //! \note Output.
-    [[nodiscard]] emscripten::val get_output_classes() const;
-
-    //! Get features tensor output.
-    //! \note Output.
-    [[nodiscard]] emscripten::val get_output_features() const;
+    //! General purpose output buffer we read from in javascript.
+    [[nodiscard]] emscripten::val get_output_buffer_val();
 
 private:
     void warm_up() const;
 
 private:
-    std::shared_ptr<Ort::Env>           m_environment;
     std::unique_ptr<InferenceSession>   m_yolo_pose_session;
     std::unique_ptr<InferenceSession>   m_yolo_nms_session;
 
-    // Image input buffer
-    std::tuple<size_t, size_t, size_t>  m_input_buffer_size;
-    std::vector<uint8_t>                m_input_buffer;
-
-    // Todo: have better outputs - just hard code these now
-    std::vector<float> m_output_boxes;
-    std::vector<float> m_output_classes;
-    std::vector<float> m_output_features;
+    std::tuple<size_t, size_t, size_t>  m_input_image_size;
 
     // Temporary buffers
     std::vector<float> m_pose_tensor_data;

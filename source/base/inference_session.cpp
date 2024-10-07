@@ -1,4 +1,4 @@
-#include <inference_session.hpp>
+#include <base/inference_session.hpp>
 
 InferenceSession::InferenceSession(const std::shared_ptr<Ort::Env> &environment, const std::string &model_file)
     : m_environment(environment) {

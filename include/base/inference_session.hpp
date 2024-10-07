@@ -2,8 +2,6 @@
 
 #include <onnxruntime_cxx_api.h>
 
-// TODO: make `run` take array / template it out.
-
 //! A modular InferenceSession that is used in our black box inference class.
 class InferenceSession {
 public:
@@ -31,7 +29,7 @@ public:
             throw std::runtime_error("output tensor size does not match output node size");
         }
 
-        Ort::RunOptions run_options;
+        const Ort::RunOptions run_options;
 
         // Inference here - how simple right?
         m_session->Run(
