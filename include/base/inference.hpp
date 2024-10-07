@@ -3,7 +3,7 @@
 #include <emscripten.h>
 #include <emscripten/bind.h>
 
-#include <base/inference_session.hpp>
+#include <onnxruntime_cxx_api.h>
 
 template<
     typename Base,

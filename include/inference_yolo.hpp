@@ -1,11 +1,14 @@
 #pragma once
 
 #include <base/inference.hpp>
+#include <base/inference_session.hpp>
 
 //! Main inference class - this will hold all the "black box" logic that our front end will interact with
-class Inference_Yolo: public Inference<Inference_Yolo, float, float> {
+class Inference_Yolo: public Inference<Inference_Yolo, uint8_t, float> {
 public:
-    explicit Inference_Yolo(size_t num_threads_intra, size_t num_threads_inter);
+    using Base = Inference;
+
+    Inference_Yolo(size_t num_threads_intra, size_t num_threads_inter);
 
     //! Set the buffer size from the javascript side.
     //! \note: this assumes everything is in bytes.
@@ -32,9 +35,6 @@ public:
 
     //! General purpose output buffer we read from in javascript.
     [[nodiscard]] emscripten::val get_output_buffer_val();
-
-private:
-    void warm_up() const;
 
 private:
     std::unique_ptr<InferenceSession>   m_yolo_pose_session;
