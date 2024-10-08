@@ -3,11 +3,11 @@
 #include <base/inference.hpp>
 #include <base/inference_session.hpp>
 
+#include <type/image_size.hpp>
+
 //! Main inference class - this will hold all the "black box" logic that our front end will interact with
 class Inference_Yolo: public Inference<Inference_Yolo, uint8_t, float> {
 public:
-    using Base = Inference;
-
     Inference_Yolo(size_t num_threads_intra, size_t num_threads_inter);
 
     //! Set the buffer size from the javascript side.
@@ -22,13 +22,7 @@ public:
     void run_frame();
 
     //! Get the current image buffer width.
-    [[nodiscard]] size_t get_input_image_size_width() const;
-
-    //! Get the current image buffer height.
-    [[nodiscard]] size_t get_input_image_size_height() const;
-
-    //! Get the current image buffer channels.
-    [[nodiscard]] size_t get_input_image_size_channels() const;
+    [[nodiscard]] type::image_size_t get_input_image_size() const;
 
     //! General purpose input buffer we write to in javascript.
     [[nodiscard]] emscripten::val get_input_buffer_val();
@@ -40,7 +34,7 @@ private:
     std::unique_ptr<InferenceSession>   m_yolo_pose_session;
     std::unique_ptr<InferenceSession>   m_yolo_nms_session;
 
-    std::tuple<size_t, size_t, size_t>  m_input_image_size;
+    type::image_size_t m_image_size;
 
     // Temporary buffers
     std::vector<float> m_pose_tensor_data;

@@ -129,8 +129,10 @@ string (REPLACE ";" " " LINKER_FLAGS_STR "${LINKER_FLAGS}")
 
 set(
     SOURCE_FILES
+        source/library.cpp
         source/base/inference_session.cpp
-        source/helper/library.cpp
+        source/helper/tensor.cpp
+        source/type/image_size.cpp
         source/inference_mediapipe.cpp
         source/inference_yolo.cpp
 )

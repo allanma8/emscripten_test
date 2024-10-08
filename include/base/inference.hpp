@@ -36,7 +36,7 @@ protected:
     }
 
     //! Get a reference to the input buffer
-    [[nodiscard]] std::vector<I>& get_input_buffer() {
+    [[nodiscard]] std::vector<I> &get_input_buffer() {
         return m_input_buffer;
     }
 
@@ -49,7 +49,7 @@ protected:
     }
 
     //! Get a reference to the output buffer
-    [[nodiscard]] std::vector<O>& get_output_buffer() {
+    [[nodiscard]] std::vector<O> &get_output_buffer() {
         return m_output_buffer;
     }
 

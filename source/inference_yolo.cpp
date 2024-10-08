@@ -1,6 +1,6 @@
 #include <inference_yolo.hpp>
 
-#include <helper/tensor_utils.hpp>
+#include <helper/tensor.hpp>
 
 namespace {
     constexpr size_t POSE_BATCH = 1;
@@ -22,19 +22,17 @@ namespace {
 
 Inference_Yolo::Inference_Yolo(const size_t num_threads_intra, const size_t num_threads_inter)
     : Inference(num_threads_intra, num_threads_inter)
-    , m_input_image_size(POSE_IMG_X, POSE_IMG_Y, 4) {
+    , m_image_size({POSE_IMG_X, POSE_IMG_Y, 4}) {
 
     // Set up the two different models we currently use - this might be more later??
     m_yolo_pose_session = std::make_unique<InferenceSession>(get_environment(), "data/yolov8n-pose.onnx");
     m_yolo_nms_session = std::make_unique<InferenceSession>(get_environment(), "data/yolov8nms-pose.onnx");
 
     // Allocate output buffers because we know size and shit now.
-    m_pose_tensor_data.resize(helper::accumulate_shape(POSE_OUTPUT_SHAPE));
+    m_pose_tensor_data.resize(helper::tensor_data_size(POSE_OUTPUT_SHAPE));
 
-    const auto [width, height, channels] = m_input_image_size;
-
-    set_input_buffer_size(width * height * channels);
-    set_output_buffer_size(helper::accumulate_shape(NMS_OUT_FEATURES_SHAPE));
+    set_input_buffer_size(m_image_size.size());
+    set_output_buffer_size(helper::tensor_data_size(NMS_OUT_FEATURES_SHAPE));
 
     // Call inference at least once to warm up
     run_frame();
@@ -47,10 +45,9 @@ void Inference_Yolo::set_input_image_size(
 ) {
     // NOTE: THIS SHOULD NEVER BE CALLED RIGHT NOW!!
     // TODO: WAIT FOR RESCALE TO BE IMPLEMENTED BEFORE REMOVING THROW
-    auto &[m_width, m_height, m_channels] = m_input_image_size;
 
     // Don't get angry if we are setting as the same
-    if (m_width == width && m_height == height && m_channels == channels) {
+    if (m_image_size.width == width && m_image_size.height == height && m_image_size.channels == channels) {
         return;
     }
 
@@ -58,29 +55,22 @@ void Inference_Yolo::set_input_image_size(
 
     // this is unreachable now but once we implement scaling it will need to call this.
 
-    m_width = width;
-    m_height = height;
-    m_channels = channels;
-
-    set_input_buffer_size(width * height * channels);
+    m_image_size = { width, height, channels };
+    set_input_buffer_size(m_image_size.size());
 }
 
 void Inference_Yolo::run_frame() {
-    // TODO: IMPLEMENT RESCALE USING OPENCV IF NOT 640/640
-    // TODO: IMPLEMENT NORMALISE USING OPENCV
     // NOTE: THIS WHOLE FUNCTION IS SKETCHY AS SHIT REWRITE IT PROPERLY LATER
-    const auto [width, height, channels] = m_input_image_size;
-
-    if (width != POSE_IMG_X || height != POSE_IMG_Y || channels != 4) {
+    if (m_image_size.width != POSE_IMG_X || m_image_size.height != POSE_IMG_Y || m_image_size.channels != 4) {
         throw std::runtime_error("you somehow managed to break this. well done!");
     }
 
     constexpr float inverse_scale = 1.f / 255.f;
-    const auto row_stride = POSE_IMG_X * channels;
+    const auto row_stride = POSE_IMG_X * m_image_size.channels;
 
     // Normalised and scaled data - this should be done with opencv
     const auto& input_buffer = get_input_buffer();
-    std::array<float, POSE_IMG_X * POSE_IMG_Y * POSE_IMG_DEPTH> input_data = {};
+    std::array<float, helper::tensor_data_size(POSE_INPUT_SHAPE)> input_data = {};
 
     for (size_t y = 0, i = 0; y < POSE_IMG_Y; y++) {
         const size_t row_offset = row_stride * y;
@@ -141,7 +131,7 @@ void Inference_Yolo::run_frame() {
     m_yolo_nms_session->run(nms_input_tensor, nms_output_tensor);
 
     // All outputs of this model use the format [detections, _]
-    const auto num_detections = helper::get_tensor_shape(nms_output_tensor.at(0)).at(0);
+    const auto num_detections = helper::tensor_shape(nms_output_tensor.at(0)).at(0);
 
     if (num_detections > 0) {
         auto &output_buffer = get_output_buffer();
@@ -153,16 +143,8 @@ void Inference_Yolo::run_frame() {
     }
 }
 
-size_t Inference_Yolo::get_input_image_size_width() const {
-    return std::get<0>(m_input_image_size);
-}
-
-size_t Inference_Yolo::get_input_image_size_height() const {
-    return std::get<1>(m_input_image_size);
-}
-
-size_t Inference_Yolo::get_input_image_size_channels() const {
-    return std::get<2>(m_input_image_size);
+type::image_size_t Inference_Yolo::get_input_image_size() const {
+    return m_image_size;
 }
 
 emscripten::val Inference_Yolo::get_input_buffer_val() {
@@ -184,9 +166,7 @@ EMSCRIPTEN_BINDINGS(inference_module) {
             .constructor<size_t, size_t>()
             .function("set_input_image_size", &Inference_Yolo::set_input_image_size)
             .function("run_frame", &Inference_Yolo::run_frame)
-            .function("get_input_image_size_width", &Inference_Yolo::get_input_image_size_width)
-            .function("get_input_image_size_height", &Inference_Yolo::get_input_image_size_height)
-            .function("get_input_image_size_channels", &Inference_Yolo::get_input_image_size_channels)
+            .function("get_input_image_size", &Inference_Yolo::get_input_image_size)
             .function("get_input_buffer_val", &Inference_Yolo::get_input_buffer_val)
             .function("get_output_buffer_val", &Inference_Yolo::get_output_buffer_val);
 }

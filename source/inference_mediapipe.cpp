@@ -1,5 +1,6 @@
 #include <inference_mediapipe.hpp>
-#include <helper/tensor_utils.hpp>
+
+#include <helper/tensor.hpp>
 
 namespace {
     constexpr size_t IMG_INPUT_X = 256;
@@ -24,7 +25,7 @@ Inference_Mediapipe::Inference_Mediapipe(
     }
 
     set_input_buffer_size(m_image_size.size());
-    set_output_buffer_size(helper::accumulate_shape(MP_OUTPUT_SHAPE));
+    set_output_buffer_size(helper::tensor_data_size(MP_OUTPUT_SHAPE));
 
     // Run inference at least once to allocate some of the backing buffers - aka warm up
     run_frame();
@@ -53,6 +54,7 @@ void Inference_Mediapipe::set_input_image_size(
 }
 
 void Inference_Mediapipe::run_frame() {
+    // NOTE: THIS WHOLE FUNCTION IS SKETCHY AS SHIT REWRITE IT PROPERLY LATER
     if (m_image_size.width != IMG_INPUT_X || m_image_size.height != IMG_INPUT_Y || m_image_size.channels != 4) {
         throw std::runtime_error("you somehow managed to break this. well done!");
     }
@@ -62,7 +64,7 @@ void Inference_Mediapipe::run_frame() {
 
     // Normalised and scaled data - this should be done with opencv
     const auto& input_buffer = get_input_buffer();
-    std::array<float, helper::accumulate_shape(MP_INPUT_SHAPE)> input_data = {};
+    std::array<float, helper::tensor_data_size(MP_INPUT_SHAPE)> input_data = {};
 
     for (size_t y = 0, i = 0; y < IMG_INPUT_Y; y++) {
         const size_t row_offset = row_stride * y;
@@ -103,16 +105,8 @@ void Inference_Mediapipe::run_frame() {
     m_session->run(input_tensor, output_tensor);
 }
 
-size_t Inference_Mediapipe::get_input_image_size_width() const {
-    return m_image_size.width;
-}
-
-size_t Inference_Mediapipe::get_input_image_size_height() const {
-    return m_image_size.height;
-}
-
-size_t Inference_Mediapipe::get_input_image_size_channels() const {
-    return m_image_size.channels;
+type::image_size_t Inference_Mediapipe::get_input_image_size() const {
+    return m_image_size;
 }
 
 emscripten::val Inference_Mediapipe::get_input_buffer_val() {
@@ -134,9 +128,7 @@ EMSCRIPTEN_BINDINGS(inference_module) {
             .constructor<size_t, size_t, bool>()
             .function("set_input_image_size", &Inference_Mediapipe::set_input_image_size)
             .function("run_frame", &Inference_Mediapipe::run_frame)
-            .function("get_input_image_size_width", &Inference_Mediapipe::get_input_image_size_width)
-            .function("get_input_image_size_height", &Inference_Mediapipe::get_input_image_size_height)
-            .function("get_input_image_size_channels", &Inference_Mediapipe::get_input_image_size_channels)
+            .function("get_input_image_size", &Inference_Mediapipe::get_input_image_size)
             .function("get_input_buffer_val", &Inference_Mediapipe::get_input_buffer_val)
             .function("get_output_buffer_val", &Inference_Mediapipe::get_output_buffer_val);
 }
