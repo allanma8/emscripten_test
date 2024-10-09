@@ -33,9 +33,7 @@ public:
 private:
     std::unique_ptr<InferenceSession>   m_yolo_pose_session;
     std::unique_ptr<InferenceSession>   m_yolo_nms_session;
+    std::unique_ptr<InferenceSession>   m_pose_classifier_session;
 
     type::image_size_t m_image_size;
-
-    // Temporary buffers
-    std::vector<float> m_pose_tensor_data;
 };

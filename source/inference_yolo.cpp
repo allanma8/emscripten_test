@@ -14,10 +14,11 @@ namespace {
     constexpr std::array<int64_t, 4> POSE_INPUT_SHAPE = {POSE_BATCH, POSE_IMG_DEPTH, POSE_IMG_Y, POSE_IMG_X};
     constexpr std::array<int64_t, 3> POSE_OUTPUT_SHAPE = {POSE_BATCH, NMS_0, NMS_1};
 
-    constexpr std::array<int64_t, 2> NMS_INPUT_SHAPE = {NMS_0, NMS_1};
-
     // Note: NMS will output a dynamic number of detections however we only care about the first
+    constexpr std::array<int64_t, 2> NMS_INPUT_SHAPE = {NMS_0, NMS_1};
     constexpr std::array<int64_t, 2> NMS_OUT_FEATURES_SHAPE = {1, 51};
+
+    constexpr std::array<int64_t, 2> POSE_CLASSIFIER_INPUT_SHAPE = {1, 51};
 }
 
 Inference_Yolo::Inference_Yolo(const size_t num_threads_intra, const size_t num_threads_inter)
@@ -27,12 +28,10 @@ Inference_Yolo::Inference_Yolo(const size_t num_threads_intra, const size_t num_
     // Set up the two different models we currently use - this might be more later??
     m_yolo_pose_session = std::make_unique<InferenceSession>(get_environment(), "data/yolov8n-pose.onnx");
     m_yolo_nms_session = std::make_unique<InferenceSession>(get_environment(), "data/yolov8nms-pose.onnx");
-
-    // Allocate output buffers because we know size and shit now.
-    m_pose_tensor_data.resize(helper::tensor_data_size(POSE_OUTPUT_SHAPE));
+    m_pose_classifier_session = std::make_unique<InferenceSession>(get_environment(), "data/pose_classifier_yolo-0.1.0.onnx");
 
     set_input_buffer_size(m_image_size.size());
-    set_output_buffer_size(helper::tensor_data_size(NMS_OUT_FEATURES_SHAPE));
+    set_output_buffer_size(1); // 1 output - how much of a sit the user is doing
 
     // Call inference at least once to warm up
     run_frame();
@@ -101,11 +100,7 @@ void Inference_Yolo::run_frame() {
     };
 
     std::array<Ort::Value, 1> pose_output_tensor = {
-        Ort::Value::CreateTensor<float>(
-            memory_info,
-            m_pose_tensor_data.data(), m_pose_tensor_data.size(),
-            POSE_OUTPUT_SHAPE.data(), POSE_OUTPUT_SHAPE.size()
-        )
+        Ort::Value{nullptr}
     };
 
     m_yolo_pose_session->run(pose_input_tensor, pose_output_tensor);
@@ -114,10 +109,13 @@ void Inference_Yolo::run_frame() {
     // NMS
     //
 
+    const auto pose_output_data = pose_output_tensor.at(0).GetTensorMutableData<float>();
+    constexpr auto pose_output_size = helper::tensor_data_size(POSE_OUTPUT_SHAPE);
+
     const std::array<Ort::Value, 1> nms_input_tensor = {
         Ort::Value::CreateTensor<float>(
             memory_info,
-            m_pose_tensor_data.data(), m_pose_tensor_data.size(),
+            pose_output_data, pose_output_size,
             NMS_INPUT_SHAPE.data(), NMS_INPUT_SHAPE.size()
         )
     };
@@ -133,14 +131,34 @@ void Inference_Yolo::run_frame() {
     // All outputs of this model use the format [detections, _]
     const auto num_detections = helper::tensor_shape(nms_output_tensor.at(0)).at(0);
 
-    if (num_detections > 0) {
-        auto &output_buffer = get_output_buffer();
-        std::copy_n(
-            nms_output_tensor.at(2).GetTensorMutableData<float>(),
-            output_buffer.size(),
-            output_buffer.begin()
-        );
+    if (num_detections <= 0) {
+        get_output_buffer().at(0) = 0.f;
+        return;
     }
+
+    //
+    // Pose classifier
+    //
+
+    const auto nms_feature_data = nms_output_tensor.at(2).GetTensorMutableData<float>();
+    constexpr auto nms_feature_size = helper::tensor_data_size(NMS_OUT_FEATURES_SHAPE);
+
+    const std::array<Ort::Value, 1> pose_classifier_input_tensor = {
+        Ort::Value::CreateTensor(
+            memory_info,
+            nms_feature_data, nms_feature_size,
+            POSE_CLASSIFIER_INPUT_SHAPE.data(), POSE_CLASSIFIER_INPUT_SHAPE.size()
+        )
+    };
+
+    std::array<Ort::Value, 1> pose_classifier_output_tensor = {
+        Ort::Value{nullptr}
+    };
+
+    m_pose_classifier_session->run(pose_classifier_input_tensor, pose_classifier_output_tensor);
+
+    // TODO: BAD C STYLE CODE FIX IT!!
+    get_output_buffer().at(0) = pose_classifier_output_tensor.at(0).GetTensorMutableData<float>()[0];
 }
 
 type::image_size_t Inference_Yolo::get_input_image_size() const {
