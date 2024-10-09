@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 3.29)
+# Until the PR below gets merged and we update emscripten to a release that contains the PR we have to force CMake
+# to operate in pre 3.28 mode. This is because 3.28 added support for C++ modules and emscripten doesn't provide
+# a wrapper for `clang-scan-deps` which from 3.28 onwards becomes a hard dependency for C++ 20 or newer projects.
+# https://github.com/emscripten-core/emscripten/pull/21987
+cmake_minimum_required(VERSION 3.21...3.27)
 
 option(BUILD_TESTS          "Include and build the test suite." OFF)
 option(BUILD_TESTS_MODULAR  "Enable MODULARIZE for tests - allows us to run them on a web browser." OFF)
@@ -12,9 +16,7 @@ if (NOT DEFINED EMSCRIPTEN)
     message(FATAL_ERROR "NOT BUILDING WITH EMSCRIPTEN - please use dev container")
 endif ()
 
-# We are stuck with 17 with this version of emscripten, we technically can compile with 20 but the
-# clang modules parser isn't included so we get a build error. When we update emscripten we can use 20.
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 # Disable extensions - fully conformant libstdc++
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -25,7 +27,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Note: more flags and shit found here
 #   - https://emscripten.org/docs/tools_reference/emcc.html
 #   - https://emscripten.org/docs/tools_reference/settings_reference.html?highlight=environment
-#
+
 
 set(
     COMPILER_FLAGS
